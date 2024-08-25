@@ -1,0 +1,11 @@
+stringTest: this is a string
+boolTest: true
+floatTest: 12.13
+intTest: 123
+sliceTest:
+  - guangdong
+  - shenzhen
+  - nanshan
+structTest:
+  name: super
+stringRequired: 123Required

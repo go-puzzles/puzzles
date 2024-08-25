@@ -1,0 +1,24 @@
+{"time":"2024-07-17T18:27:12.47995+08:00","level":"INFO","msg":"this is a message source=main.go:22"}
+{"time":"2024-07-17T18:27:12.480242+08:00","level":"DEBUG","msg":"this is a message source=main.go:23"}
+{"time":"2024-07-17T18:27:12.480264+08:00","level":"WARN","msg":"this is a message source=main.go:24"}
+{"time":"2024-07-17T18:27:12.480282+08:00","level":"ERROR","msg":"this is a message source=main.go:25"}
+{"time":"2024-07-17T18:27:12.480306+08:00","level":"INFO","msg":"this is a ctx message source=main.go:29 chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480335+08:00","level":"DEBUG","msg":"this is a ctx message source=main.go:30 chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480354+08:00","level":"WARN","msg":"this is a ctx message source=main.go:31 chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480372+08:00","level":"ERROR","msg":"this is a ctx message source=main.go:32 chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480394+08:00","level":"INFO","msg":"this is a key-value message source=main.go:35 name=hoven chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480414+08:00","level":"DEBUG","msg":"this is a key-value message source=main.go:37 name=hoven city=shenzhen chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480439+08:00","level":"WARN","msg":"this is a key-value message source=main.go:39 name=hoven city=shenzhen age=16 phone=12345 chains=group:handler"}
+{"time":"2024-07-17T18:27:12.480472+08:00","level":"ERROR","msg":"this is a key-value with bad key message source=main.go:42 name=hoven city=shenzhen age=16 phone=12345 email=xxxx !BADKEY=somethingBad chains=group:handler"}
+{"time":"2024-07-17T18:28:00.27605+08:00","level":"INFO","msg":"this is a message source=main.go:22"}
+{"time":"2024-07-17T18:28:00.276223+08:00","level":"DEBUG","msg":"this is a message source=main.go:23"}
+{"time":"2024-07-17T18:28:00.276244+08:00","level":"WARN","msg":"this is a message source=main.go:24"}
+{"time":"2024-07-17T18:28:00.276266+08:00","level":"ERROR","msg":"this is a message source=main.go:25"}
+{"time":"2024-07-17T18:28:00.276294+08:00","level":"INFO","msg":"this is a ctx message chains=group:handler source=main.go:29"}
+{"time":"2024-07-17T18:28:00.27632+08:00","level":"DEBUG","msg":"this is a ctx message chains=group:handler source=main.go:30"}
+{"time":"2024-07-17T18:28:00.276342+08:00","level":"WARN","msg":"this is a ctx message chains=group:handler source=main.go:31"}
+{"time":"2024-07-17T18:28:00.276361+08:00","level":"ERROR","msg":"this is a ctx message chains=group:handler source=main.go:32"}
+{"time":"2024-07-17T18:28:00.27638+08:00","level":"INFO","msg":"this is a key-value message name=hoven chains=group:handler source=main.go:35"}
+{"time":"2024-07-17T18:28:00.2764+08:00","level":"DEBUG","msg":"this is a key-value message name=hoven city=shenzhen chains=group:handler source=main.go:37"}
+{"time":"2024-07-17T18:28:00.276428+08:00","level":"WARN","msg":"this is a key-value message name=hoven city=shenzhen age=16 phone=12345 chains=group:handler source=main.go:39"}
+{"time":"2024-07-17T18:28:00.276463+08:00","level":"ERROR","msg":"this is a key-value with bad key message name=hoven city=shenzhen age=16 phone=12345 email=xxxx !BADKEY=somethingBad chains=group:handler source=main.go:42"}
