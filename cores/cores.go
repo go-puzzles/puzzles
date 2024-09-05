@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	
+
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
 	"github.com/soheilhy/cmux"
@@ -19,19 +19,19 @@ type listenEntry interface {
 type mountFn struct {
 	name   string
 	daemon bool
-	
+
 	fn func(ctx context.Context) error
-	
+
 	cron    string
 	running bool
-	
+
 	sched cron.Schedule
 }
 
 type CoreService struct {
 	opts     *Options
 	listener net.Listener
-	
+
 	cron     *cron.Cron
 	mountFns []mountFn
 }
@@ -63,7 +63,7 @@ func NewPuzzleCore(opts ...ServiceOption) *CoreService {
 		},
 		mountFns: make([]mountFn, 0),
 	}
-	
+
 	for _, opt := range opts {
 		opt(c.opts)
 	}
@@ -84,18 +84,19 @@ func (c *CoreService) isHttpRun() bool {
 
 func (c *CoreService) runMountFn() error {
 	grp, ctx := errgroup.WithContext(c.ctx())
-	
+
 	for _, mount := range c.mountFns {
 		mf := mount
-		
+
 		c := plog.With(ctx, "worker", mf.name)
 		grp.Go(func() (err error) {
 			err = waitContext(c, func() error {
 				return mf.fn(c)
 			})
-			
+
 			if err != nil {
 				if mf.daemon {
+					plog.Infoc(ctx, "Worker force close after 5 seconds...")
 					return err
 				}
 				return nil
@@ -103,7 +104,7 @@ func (c *CoreService) runMountFn() error {
 			return nil
 		})
 	}
-	
+
 	return grp.Wait()
 }
 
@@ -111,12 +112,12 @@ func (c *CoreService) serve() error {
 	c.mountFns = []mountFn{
 		c.gracefulKill(),
 	}
-	
+
 	if c.listener != nil {
 		c.opts.Cmux = cmux.New(c.listener)
 		c.mountFns = append(c.mountFns, c.listenCmux())
 	}
-	
+
 	c.wrapWorker()
 	c.wrapPuzzles()
 	c.welcome()
@@ -153,12 +154,12 @@ func Start[T listenEntry](srv *CoreService, addr T) error {
 	default:
 		return fmt.Errorf("unsupported address type: %T", v)
 	}
-	
+
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return fmt.Errorf("failed to start listener: %w", err)
 	}
-	
+
 	srv.listener = listener
 	return srv.runWithListener(listener)
 }

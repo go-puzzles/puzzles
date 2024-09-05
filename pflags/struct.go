@@ -5,16 +5,20 @@ import (
 	"reflect"
 	"strings"
 	"time"
-	
+
 	"github.com/go-puzzles/puzzles/plog"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 var (
 	ErrNotStruct = errors.New("not struct")
-	
+
 	keyStructMap = make(map[string]any)
+
+	tag = "json"
 )
 
 type HasDefault interface {
@@ -29,6 +33,16 @@ type HasReloader interface {
 	Reload()
 }
 
+func SetStructParseTagName(t string) {
+	tag = t
+}
+
+func withViperTagName() viper.DecoderConfigOption {
+	return func(dc *mapstructure.DecoderConfig) {
+		dc.TagName = tag
+	}
+}
+
 func Struct(key string, defaultVal any, usage string) func(out any) error {
 	err := setPFlagRecursively(key, defaultVal)
 	if err != nil {
@@ -39,16 +53,17 @@ func Struct(key string, defaultVal any, usage string) func(out any) error {
 	}
 	v.SetDefault(key, defaultVal)
 	return func(out any) error {
-		if err := v.UnmarshalKey(key, out); err != nil {
+
+		if err := v.UnmarshalKey(key, out, withViperTagName()); err != nil {
 			return err
 		}
-		
+
 		if err := structCheck(out); err != nil {
 			return errors.Wrap(err, "check")
 		}
-		
+
 		keyStructMap[key] = out
-		
+
 		return nil
 	}
 }
@@ -60,22 +75,22 @@ func structCheck(out any) error {
 	if v, ok := out.(HasValidator); ok {
 		return v.Validate()
 	}
-	
+
 	return nil
 }
 
 func structConfReload() {
 	for key, out := range keyStructMap {
-		if err := v.UnmarshalKey(key, out); err != nil {
+		if err := v.UnmarshalKey(key, out, withViperTagName()); err != nil {
 			plog.Errorf("reunmarshal %v error: %v", key, err)
 			continue
 		}
-		
+
 		if err := structCheck(out); err != nil {
 			plog.Errorf("%v check error: %v", key, err)
 			continue
 		}
-		
+
 		if r, ok := out.(HasReloader); ok {
 			r.Reload()
 		}
@@ -98,7 +113,7 @@ func setPFlagRecursively(prefix string, i interface{}) error {
 	for i := 0; i < vf.NumField(); i++ {
 		field := vf.Type().Field(i)
 		name := field.Name
-		for _, tag := range []string{"vflags", "json"} {
+		for _, tag := range []string{"pflags", "json", "yaml"} {
 			if content := field.Tag.Get(tag); content != "" {
 				name = strings.SplitN(content, ",", 2)[0]
 				break
@@ -106,7 +121,7 @@ func setPFlagRecursively(prefix string, i interface{}) error {
 		}
 		usage := field.Tag.Get("usage")
 		name = prefix + "." + name
-		
+
 		switch vf.Field(i).Kind() {
 		case reflect.String:
 			setPFlag(name, pflag.String(name, vf.Field(i).String(), usage))
@@ -147,7 +162,7 @@ func setPFlagRecursively(prefix string, i interface{}) error {
 			return fmt.Errorf("unsupport kind of field %s %s", field.Name, vf.Field(i).Kind())
 		}
 	}
-	
+
 	return nil
 }
 
