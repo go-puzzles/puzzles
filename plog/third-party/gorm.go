@@ -65,7 +65,7 @@ func NewGormLogger(opts ...GormLoggerOption) *gormLogger {
 
 func (gl *gormLogger) wrapPrefix(ctx context.Context) context.Context {
 	if gl.prefix != "" {
-		ctx = plog.With(ctx, "[%v]", gl.prefix)
+		ctx = plog.With(ctx, "prefix", gl.prefix)
 	}
 
 	return ctx
