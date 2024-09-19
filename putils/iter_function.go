@@ -33,3 +33,19 @@ func FilterIter[inputs ~[]E, E any](arr inputs, fn func(E) bool) iter.Seq[E] {
 		}
 	}
 }
+
+func ZipIter[T1 any, T2 any, E [2]any](arr1 []T1, arrs []T2) iter.Seq[E] {
+	return func(yield func(E) bool) {
+		length := len(arr1)
+		if len(arrs) < length {
+			length = len(arrs)
+		}
+
+		for i := 0; i < length; i++ {
+			zipped := [2]any{arr1[i], arrs[i]}
+			if !yield(zipped) {
+				return
+			}
+		}
+	}
+}
