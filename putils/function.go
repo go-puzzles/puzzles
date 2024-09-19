@@ -103,3 +103,12 @@ func Partition[T any](arr []T, predicate func(T) bool) ([]T, []T) {
 	}
 	return trueSlice, falseSlice
 }
+
+func Contains[T comparable](arr []T, tar T) bool {
+	for _, a := range arr {
+		if a == tar {
+			return true
+		}
+	}
+	return false
+}
