@@ -2,9 +2,9 @@ package dialer
 
 import (
 	"time"
-	
-	"github.com/go-puzzles/cores/discover"
-	"github.com/go-puzzles/plog"
+
+	"github.com/go-puzzles/puzzles/cores/discover"
+	"github.com/go-puzzles/puzzles/plog"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -24,16 +24,16 @@ func consulRedisDial(addr string, db int, password ...string) func() (redis.Conn
 			serviceAddr = addr
 		}
 		plog.Debugf("Discover redis addr: %v", serviceAddr)
-		
+
 		options := []redis.DialOption{
 			redis.DialDatabase(db),
 			redis.DialConnectTimeout(5 * time.Second),
 		}
-		
+
 		if len(password) > 0 && password[0] != "" {
 			options = append(options, redis.DialPassword(password[0]))
 		}
-		
+
 		return redis.Dial("tcp", serviceAddr, options...)
 	}
 }

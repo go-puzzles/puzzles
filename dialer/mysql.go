@@ -3,9 +3,9 @@ package dialer
 import (
 	"database/sql"
 	"fmt"
-	
-	"github.com/go-puzzles/cores/discover"
-	"github.com/go-puzzles/plog"
+
+	"github.com/go-puzzles/puzzles/cores/discover"
+	"github.com/go-puzzles/puzzles/plog"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
@@ -32,20 +32,20 @@ func generateDSN(address string, opt *DialOption) string {
 func DialMysqlGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 	address := discover.GetServiceFinder().GetAddress(service)
 	plog.Debugf("Discover mysql addr. Addr=%v", address)
-	
+
 	opt := packDialOption(opts...)
-	
+
 	dsn := generateDSN(address, opt)
 	db, err := gorm.Open(mysql.Open(dsn), defaultGormConfig(opt))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	configDB(sqlDB)
 	return db, nil
 }
@@ -54,9 +54,9 @@ func DialMysqlGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 func DialGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 	address := discover.GetServiceFinder().GetAddress(service)
 	plog.Debugf("Discover mysql addr. Addr=%v", address)
-	
+
 	opt := packDialOption(opts...)
-	
+
 	dsn := generateDSN(address, opt)
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		PrepareStmt: true,
@@ -64,32 +64,32 @@ func DialGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	configDB(sqlDB)
 	return db, nil
 }
 
 func DialMysql(service string, opts ...OptionFunc) (*sql.DB, error) {
 	address := discover.GetServiceFinder().GetAddress(service)
-	
+
 	opt := packDialOption(opts...)
-	
+
 	dsn := generateDSN(address, opt)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	err = db.Ping()
 	if err != nil {
 		return nil, errors.Wrap(err, "db ping")
 	}
-	
+
 	configDB(db)
 	return db, nil
 }
@@ -99,8 +99,8 @@ func DialMysqlX(service string, opts ...OptionFunc) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	dbx := sqlx.NewDb(db, "mysql")
-	
+
 	return dbx, nil
 }
