@@ -24,6 +24,8 @@ func FileExists(filePath string) bool {
 	return true
 }
 
+// GenerateRandomString
+// Deprecated: Use RandString() instead.
 func GenerateRandomString(n int) string {
 	var letterRunes = []rune("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
