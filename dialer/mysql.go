@@ -29,13 +29,8 @@ func generateDSN(address string, opt *DialOption) string {
 	return dsn
 }
 
-func DialMysqlGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
-	address := discover.GetServiceFinder().GetAddress(service)
-	plog.Debugf("Discover mysql addr. Addr=%v", address)
-
+func DialMysqlGormWithDSN(dsn string, opts ...OptionFunc) (*gorm.DB, error) {
 	opt := packDialOption(opts...)
-
-	dsn := generateDSN(address, opt)
 	db, err := gorm.Open(mysql.Open(dsn), defaultGormConfig(opt))
 	if err != nil {
 		return nil, err
@@ -48,6 +43,16 @@ func DialMysqlGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 
 	configDB(sqlDB)
 	return db, nil
+}
+
+func DialMysqlGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
+	address := discover.GetServiceFinder().GetAddress(service)
+	plog.Debugf("Discover mysql addr. Addr=%v", address)
+
+	opt := packDialOption(opts...)
+	dsn := generateDSN(address, opt)
+
+	return DialMysqlGormWithDSN(dsn, opts...)
 }
 
 // Deprecated: use DialMysqlGorm replace
@@ -74,12 +79,7 @@ func DialGorm(service string, opts ...OptionFunc) (*gorm.DB, error) {
 	return db, nil
 }
 
-func DialMysql(service string, opts ...OptionFunc) (*sql.DB, error) {
-	address := discover.GetServiceFinder().GetAddress(service)
-
-	opt := packDialOption(opts...)
-
-	dsn := generateDSN(address, opt)
+func DialMysqlWithDSN(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
@@ -92,6 +92,15 @@ func DialMysql(service string, opts ...OptionFunc) (*sql.DB, error) {
 
 	configDB(db)
 	return db, nil
+}
+
+func DialMysql(service string, opts ...OptionFunc) (*sql.DB, error) {
+	address := discover.GetServiceFinder().GetAddress(service)
+
+	opt := packDialOption(opts...)
+
+	dsn := generateDSN(address, opt)
+	return DialMysqlWithDSN(dsn)
 }
 
 func DialMysqlX(service string, opts ...OptionFunc) (*sqlx.DB, error) {
