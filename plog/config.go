@@ -8,7 +8,7 @@ func (l *LogConfig) Write(p []byte) (n int, err error) {
 	return (*lumberjack.Logger)(l).Write(p)
 }
 
-func (l *LogConfig) SetDefault() *LogConfig {
+func (l *LogConfig) SetDefault() {
 	if l.Filename == "" {
 		l.Filename = "runlog.log"
 	}
@@ -24,6 +24,4 @@ func (l *LogConfig) SetDefault() *LogConfig {
 	if l.MaxSize == 0 {
 		l.MaxSize = 3
 	}
-
-	return l
 }
