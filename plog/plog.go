@@ -4,9 +4,10 @@ import (
 	"context"
 	"io"
 	"time"
-	
+
 	"github.com/go-puzzles/puzzles/plog/level"
 	"github.com/go-puzzles/puzzles/plog/log"
+	"github.com/go-puzzles/puzzles/plog/slog"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -17,6 +18,10 @@ var (
 func init() {
 	time.Local = time.FixedZone("CST", 8*3600)
 	logger = log.New(log.WithCalldepth(5))
+}
+
+func SetSlog() {
+	logger = slog.New(slog.WithCalldepth(6))
 }
 
 func SetLogger(l Logger) {
@@ -79,6 +84,6 @@ func PanicError(err error, v ...any) {
 	if err == nil {
 		return
 	}
-	
+
 	logger.PanicError(err, v...)
 }

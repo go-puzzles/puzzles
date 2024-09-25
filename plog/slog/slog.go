@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	
+
 	"github.com/go-puzzles/puzzles/plog/level"
 	logctx "github.com/go-puzzles/puzzles/plog/log-ctx"
 	"github.com/go-puzzles/puzzles/plog/parser"
@@ -41,7 +41,7 @@ func New(opts ...Option) *Logger {
 func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Option) *Logger {
 	lev := &slog.LevelVar{}
 	lev.Set(slog.LevelInfo)
-	
+
 	opt.Level = lev
 	logger := slog.New(handler)
 	l := &Logger{
@@ -50,13 +50,13 @@ func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Opti
 		logLevel:        level.LevelInfo,
 		slogLoggerLevel: lev,
 		slogOpt:         opt,
-		callDepth:       4,
+		callDepth:       5,
 	}
-	
+
 	for _, opt := range opts {
 		opt(l)
 	}
-	
+
 	return l
 }
 
@@ -107,9 +107,9 @@ func (l *Logger) logc(c context.Context, lb logable, msg string, v ...any) {
 	if lc == nil {
 		lc = &logctx.LogContext{}
 	}
-	
+
 	msg, args := l.logFmt(lc, msg, v...)
-	
+
 	lb(c, msg, args...)
 }
 
@@ -118,18 +118,18 @@ func (l *Logger) logFmt(lc *logctx.LogContext, msg string, v ...any) (string, []
 	if err != nil {
 		return msg + " " + err.Error(), nil
 	}
-	
+
 	msg = s
 	keys = append(keys, lc.Keys...)
 	values = append(values, lc.Values...)
-	
+
 	var args []any
 	for idx, key := range keys {
 		args = append(args, key)
 		args = append(args, values[idx])
 	}
 	args = append(args, "source", l.getSrouce())
-	
+
 	return msg, args
 }
 
@@ -174,14 +174,14 @@ func (l *Logger) PanicError(err error, v ...any) {
 	if err == nil {
 		return
 	}
-	
+
 	var s string
 	if len(v) > 0 {
 		s = err.Error() + ":" + fmt.Sprint(v...)
 	} else {
 		s = err.Error()
 	}
-	
+
 	l.Errorc(context.Background(), s)
 	panic(err)
 }
