@@ -53,7 +53,6 @@ func Struct(key string, defaultVal any, usage string) func(out any) error {
 	}
 	v.SetDefault(key, defaultVal)
 	return func(out any) error {
-
 		if err := v.UnmarshalKey(key, out, withViperTagName()); err != nil {
 			return err
 		}

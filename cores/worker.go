@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-
+	
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
@@ -74,6 +74,10 @@ func WithDaemonWorker(fn WorkerFunc) ServiceOption {
 	return withSimpleWorker(funcName(fn), true, fn)
 }
 
+func WithDaemonNameWorker(name string, fn WorkerFunc) ServiceOption {
+	return withSimpleWorker(name, true, fn)
+}
+
 func WithCronWorker(cron string, fn WorkerFunc) ServiceOption {
 	return func(cs *Options) {
 		cs.workers = append(cs.workers, &cronWorker{
@@ -92,11 +96,11 @@ func funcName(i any) string {
 
 func StructName(i any) string {
 	tPtr := reflect.TypeOf(i)
-
+	
 	if tPtr.Kind() == reflect.Ptr {
 		tPtr = tPtr.Elem()
 	}
-
+	
 	return tPtr.Name()
 }
 
@@ -116,20 +120,20 @@ func (c *CoreService) mountSimpleWorker(worker *simpleWorker) {
 			}()
 		}
 		c = plog.With(c, "Worker", worker.name)
-
+		
 		if err := worker.fn(c); err != nil {
 			plog.Errorc(c, "worker: %v run error: %v", worker.name, err)
 			return errors.Wrap(err, worker.name)
 		}
 		return nil
 	}
-
+	
 	mf := mountFn{
 		fn:     fn,
 		name:   worker.name,
 		daemon: worker.daemon,
 	}
-
+	
 	c.mountFns = append(c.mountFns, mf)
 }
 
@@ -142,7 +146,7 @@ func (c *CoreService) mountCronWorker(worker *cronWorker) {
 					c.cron.Run()
 					return nil
 				})
-
+				
 				if err != nil {
 					c.cron.Stop()
 					plog.Errorc(ctx, "Run cron error: %v", err)
@@ -153,31 +157,31 @@ func (c *CoreService) mountCronWorker(worker *cronWorker) {
 			daemon: true,
 		})
 	}
-
+	
 	sched, err := cron.ParseStandard(worker.cron)
 	if err != nil {
 		plog.Fatalf("cron worker cron invalid. err: %v", err)
 	}
-
+	
 	fn := func() {
 		ctx := plog.With(context.Background(), "Worker", worker.name)
 		defer plog.Debugc(ctx, "Cron Worker: %v Next scheduler time: %v", worker.name, sched.Next(time.Now()))
-
+		
 		err := waitContext(c.ctx(), func() error {
 			if worker.running {
 				return errors.New("job still running")
 			}
 			worker.running = true
 			defer func() { worker.running = false }()
-
+			
 			return worker.fn(ctx)
 		})
-
+		
 		if err != nil {
 			plog.Errorc(ctx, "Run cron worker: %v error: %v", worker.name, err)
 		}
 	}
-
+	
 	c.cron.AddFunc(worker.cron, fn)
 }
 
@@ -205,12 +209,12 @@ func waitContext(ctx context.Context, fn func() error) error {
 	go func() {
 		stop <- fn()
 	}()
-
+	
 	go func() {
 		<-ctx.Done()
 		time.Sleep(time.Second * 5)
 		stop <- errors.Wrap(ctx.Err(), "Force close")
 	}()
-
+	
 	return <-stop
 }

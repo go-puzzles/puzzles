@@ -88,10 +88,9 @@ func (c *CoreService) runMountFn() error {
 	for _, mount := range c.mountFns {
 		mf := mount
 
-		c := plog.With(ctx, "worker", mf.name)
 		grp.Go(func() (err error) {
-			err = waitContext(c, func() error {
-				return mf.fn(c)
+			err = waitContext(ctx, func() error {
+				return mf.fn(ctx)
 			})
 
 			if err != nil {
