@@ -111,6 +111,10 @@ func setPFlagRecursively(prefix string, i interface{}) error {
 	}
 	for i := 0; i < vf.NumField(); i++ {
 		field := vf.Type().Field(i)
+		if !field.IsExported() {
+			continue
+		}
+
 		name := field.Name
 		for _, tag := range []string{"pflags", "json", "yaml"} {
 			if content := field.Tag.Get(tag); content != "" {
