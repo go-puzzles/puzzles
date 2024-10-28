@@ -119,9 +119,8 @@ func (c *CoreService) mountSimpleWorker(worker *simpleWorker) {
 				}
 			}()
 		}
-		c = plog.With(c, "Worker", worker.name)
 
-		if err := worker.fn(c); err != nil {
+		if err := worker.fn(c); err != nil && !errors.Is(err, context.Canceled) {
 			plog.Errorc(c, "worker: %v run error: %v", worker.name, err)
 			return errors.Wrap(err, worker.name)
 		}
@@ -205,7 +204,13 @@ func (c *CoreService) wrapWorker() {
 	}
 }
 
-func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Context) error) error {
+func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Context) error) (err error) {
+	defer func() {
+		if errors.Is(err, context.Canceled) {
+			err = nil
+		}
+	}()
+
 	stop := make(chan error)
 
 	go func() {
@@ -224,7 +229,7 @@ func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Cont
 		defer ticket.Stop()
 
 		select {
-		case err := <-stop:
+		case err = <-stop:
 			return err
 		case <-ticket.C:
 			plog.Infoc(ctx, "Force closing worker")
