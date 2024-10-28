@@ -142,14 +142,15 @@ func (c *CoreService) mountCronWorker(worker *cronWorker) {
 		c.cron = cron.New()
 		c.mountFns = append(c.mountFns, mountFn{
 			fn: func(ctx context.Context) error {
-				err := waitContext(ctx, func() error {
+				defer c.cron.Stop()
+				err := waitContext(ctx, true, func(_ context.Context) error {
 					c.cron.Run()
 					return nil
 				})
 
 				if err != nil {
-					c.cron.Stop()
 					plog.Errorc(ctx, "Run cron error: %v", err)
+					return errors.Wrap(err, "Run cron error")
 				}
 				return nil
 			},
@@ -164,10 +165,10 @@ func (c *CoreService) mountCronWorker(worker *cronWorker) {
 	}
 
 	fn := func() {
-		ctx := plog.With(context.Background(), "Worker", worker.name)
+		ctx := plog.With(c.ctx, "Worker", worker.name)
 		defer plog.Debugc(ctx, "Cron Worker: %v Next scheduler time: %v", worker.name, sched.Next(time.Now()))
 
-		err := waitContext(c.ctx(), func() error {
+		err := waitContext(ctx, false, func(ctx context.Context) error {
 			if worker.running {
 				return errors.New("job still running")
 			}
@@ -199,23 +200,35 @@ func (c *CoreService) wrapWorker() {
 			}
 			c.mountCronWorker(w)
 		default:
-			plog.Warnc(c.ctx(), "Unknown worker type. worker: %v", plog.GetFuncName(w))
+			plog.Warnc(c.ctx, "Unknown worker type. worker: %v", plog.GetFuncName(w))
 		}
 	}
 }
 
-func waitContext(ctx context.Context, fn func() error) error {
+func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Context) error) error {
 	stop := make(chan error)
-	go func() {
-		stop <- fn()
-	}()
 
 	go func() {
-		<-ctx.Done()
-		plog.Infoc(ctx, "Worker force close after 5 seconds...")
-		time.Sleep(time.Second * 5)
-		stop <- errors.Wrap(ctx.Err(), "Force close")
+		stop <- fn(ctx)
 	}()
 
-	return <-stop
+	select {
+	case err := <-stop:
+		return err
+	case <-ctx.Done():
+		if quitImmediately {
+			return ctx.Err()
+		}
+
+		ticket := time.NewTicker(time.Second * 5)
+		defer ticket.Stop()
+
+		select {
+		case err := <-stop:
+			return err
+		case <-ticket.C:
+			plog.Infoc(ctx, "Force closing worker")
+			return errors.Wrap(ctx.Err(), "Force close")
+		}
+	}
 }

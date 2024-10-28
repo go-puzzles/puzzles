@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-puzzles/puzzles/cores"
 	httppuzzle "github.com/go-puzzles/puzzles/cores/puzzles/http-puzzle"
@@ -24,6 +26,15 @@ func main() {
 	})
 	core := cores.NewPuzzleCore(
 		pprofpuzzle.WithCorePprof(),
+		cores.WithNameWorker("worker1", func(ctx context.Context) error {
+			time.Sleep(time.Second * 5)
+			plog.Infoc(ctx, "worker stop")
+			return nil
+		}),
+		cores.WithCronWorker("@every 2s", func(ctx context.Context) error {
+			plog.Infoc(ctx, "worker start")
+			return nil
+		}),
 		httppuzzle.WithCoreHttpPuzzle("/api", router),
 	)
 

@@ -92,6 +92,7 @@ func (g *grpcUiPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) err
 }
 
 func (g *grpcUiPuzzles) Stop() error {
+	defer plog.Debugf("grpcui puzzle stopped...")
 	g.grpcSelfConn.Close()
 	return g.grpcUILis.Close()
 }

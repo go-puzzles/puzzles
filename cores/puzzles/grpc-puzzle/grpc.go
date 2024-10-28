@@ -3,7 +3,7 @@ package grpcpuzzle
 import (
 	"context"
 	"net"
-	
+
 	"github.com/go-puzzles/puzzles/cores"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
@@ -15,7 +15,7 @@ import (
 var (
 	grpcLis  net.Listener
 	grpcInit = make(chan struct{}, 1)
-	
+
 	gp = &grpcPuzzles{
 		opts: make([]grpc.ServerOption, 0),
 	}
@@ -53,20 +53,21 @@ func (g *grpcPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error
 	if opt.Cmux == nil {
 		return errors.New("no http listener specify. please run service with cores.Start")
 	}
-	
+
 	grpcLis = opt.Cmux.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
 	g.grpcSrv = grpc.NewServer(g.opts...)
-	
+
 	for _, fn := range g.grpcServersFunc {
 		fn(g.grpcSrv)
 	}
-	
+
 	reflection.Register(g.grpcSrv)
 	grpcInit <- struct{}{}
 	return g.grpcSrv.Serve(grpcLis)
 }
 
 func (g *grpcPuzzles) Stop() error {
+	defer plog.Debugf("grpc puzzle stopped...")
 	g.grpcSrv.Stop()
 	return grpcLis.Close()
 }

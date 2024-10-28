@@ -2,10 +2,10 @@ package cores
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
@@ -30,6 +30,8 @@ type mountFn struct {
 }
 
 type CoreService struct {
+	ctx      context.Context
+	cancel   func()
 	opts     *Options
 	listener net.Listener
 
@@ -58,9 +60,13 @@ func (o *Options) RegisterPuzzle(p Puzzle) {
 type ServiceOption func(*Options)
 
 func NewPuzzleCore(opts ...ServiceOption) *CoreService {
+	ctx, cancel := context.WithCancel(context.TODO())
+
 	c := &CoreService{
+		ctx:    ctx,
+		cancel: cancel,
 		opts: &Options{
-			Ctx:     context.Background(),
+			Ctx:     ctx,
 			puzzles: make(map[string]Puzzle),
 			workers: make([]Worker, 0),
 		},
@@ -73,10 +79,6 @@ func NewPuzzleCore(opts ...ServiceOption) *CoreService {
 	return c
 }
 
-func (c *CoreService) ctx() context.Context {
-	return c.opts.Ctx
-}
-
 func (c *CoreService) options() *Options {
 	return c.opts
 }
@@ -86,17 +88,13 @@ func (c *CoreService) isHttpRun() bool {
 }
 
 func (c *CoreService) runMountFn() error {
-	grp, ctx := errgroup.WithContext(c.ctx())
+	grp, ctx := errgroup.WithContext(c.ctx)
 
 	for _, mount := range c.mountFns {
 		mf := mount
-
+		cc := plog.With(ctx, "Worker", mf.name)
 		grp.Go(func() (err error) {
-			err = waitContext(ctx, func() error {
-				plog.Debugc(c.ctx(), "Run worker: %v", mf.name)
-				return mf.fn(ctx)
-			})
-
+			err = waitContext(cc, false, mf.fn)
 			if err != nil {
 				if mf.daemon {
 					return err
@@ -128,8 +126,16 @@ func (c *CoreService) serve() error {
 
 func (c *CoreService) listenCmux() mountFn {
 	return mountFn{
-		fn: func(ctx context.Context) error {
-			time.Sleep(time.Second * 2)
+		fn: func(ctx context.Context) (err error) {
+			defer func() {
+				if errors.Is(err, net.ErrClosed) {
+					err = nil
+				}
+
+				if err != nil {
+					plog.Errorc(ctx, "Cmux serve error: %v", err)
+				}
+			}()
 			return c.opts.Cmux.Serve()
 		},
 		name:   "CmuxListener",
@@ -138,7 +144,6 @@ func (c *CoreService) listenCmux() mountFn {
 }
 
 func (c *CoreService) runWithListener(lis net.Listener) error {
-	c.opts.Cmux = cmux.New(lis)
 	c.opts.ListenerAddr = lis.Addr().String()
 	return c.serve()
 }

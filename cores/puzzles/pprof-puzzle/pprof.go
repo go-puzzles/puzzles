@@ -67,7 +67,12 @@ func (p *pprofPuzzles) StartPuzzle(ctx context.Context, opts *cores.Options) err
 	return http.Serve(pLis, handler)
 }
 
-func (p *pprofPuzzles) Stop() error {
-	plog.Debugf("pprof puzzle stop")
+func (p *pprofPuzzles) Stop() (err error) {
+	defer func() {
+		plog.Debugf("pprof puzzle stopped...")
+		if errors.Is(err, net.ErrClosed) {
+			err = nil
+		}
+	}()
 	return p.lis.Close()
 }

@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	
+
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
 )
@@ -13,7 +13,7 @@ import (
 func (c *CoreService) GracefulStopPuzzle() {
 	for name, puzzle := range c.opts.puzzles {
 		if err := puzzle.Stop(); err != nil {
-			plog.Errorc(c.ctx(), "stop %v error: %v", name, err)
+			plog.Errorc(c.ctx, "stop %v error: %v", name, err)
 		}
 	}
 }
@@ -31,12 +31,23 @@ func (c *CoreService) gracefulKill() mountFn {
 				syscall.SIGTERM,
 				syscall.SIGQUIT,
 			)
-			
+
 			select {
 			case sg := <-ch:
-				plog.Infoc(c.ctx(), "Graceful stopping puzzles...")
+				plog.Infoc(c.ctx, "Graceful stopping puzzles...")
 				c.GracefulStopPuzzle()
-				plog.Infoc(c.ctx(), "Graceful stopped puzzles successfully")
+
+				if c.opts.Cmux != nil {
+					c.opts.Cmux.Close()
+				}
+
+				if c.listener != nil {
+					c.listener.Close()
+				}
+
+				c.cancel()
+
+				plog.Infoc(c.ctx, "Graceful stopped puzzles successfully")
 				return errors.Errorf("Signal: %s", sg.String())
 			case <-ctx.Done():
 				return ctx.Err()

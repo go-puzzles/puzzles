@@ -75,7 +75,12 @@ func (h *httpPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error
 	return http.Serve(lis, handler)
 }
 
-func (h *httpPuzzles) Stop() error {
-	plog.Debugf("http puzzles stop...")
+func (h *httpPuzzles) Stop() (err error) {
+	defer func() {
+		plog.Debugf("http puzzle stopped...")
+		if errors.Is(err, net.ErrClosed) {
+			err = nil
+		}
+	}()
 	return h.lis.Close()
 }
