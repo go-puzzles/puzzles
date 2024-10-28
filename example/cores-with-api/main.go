@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-puzzles/puzzles/cores"
 	httppuzzle "github.com/go-puzzles/puzzles/cores/puzzles/http-puzzle"
+	pprofpuzzle "github.com/go-puzzles/puzzles/cores/puzzles/pprof-puzzle"
 	"github.com/go-puzzles/puzzles/pflags"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/gorilla/mux"
@@ -22,6 +23,7 @@ func main() {
 		w.Write([]byte("hello world"))
 	})
 	core := cores.NewPuzzleCore(
+		pprofpuzzle.WithCorePprof(),
 		httppuzzle.WithCoreHttpPuzzle("/api", router),
 	)
 

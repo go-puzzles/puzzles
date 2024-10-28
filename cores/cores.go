@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
@@ -42,8 +43,10 @@ type Options struct {
 	ServiceName  string
 	Tags         []string
 	Cmux         cmux.CMux
-	puzzles      map[string]Puzzle
-	workers      []Worker
+	WaitPprof    chan struct{}
+
+	puzzles map[string]Puzzle
+	workers []Worker
 }
 
 // RegisterPuzzle will put Puzzle into cores service
@@ -90,12 +93,12 @@ func (c *CoreService) runMountFn() error {
 
 		grp.Go(func() (err error) {
 			err = waitContext(ctx, func() error {
+				plog.Debugc(c.ctx(), "Run worker: %v", mf.name)
 				return mf.fn(ctx)
 			})
 
 			if err != nil {
 				if mf.daemon {
-					plog.Infoc(ctx, "Worker force close after 5 seconds...")
 					return err
 				}
 				return nil
@@ -126,6 +129,7 @@ func (c *CoreService) serve() error {
 func (c *CoreService) listenCmux() mountFn {
 	return mountFn{
 		fn: func(ctx context.Context) error {
+			time.Sleep(time.Second * 2)
 			return c.opts.Cmux.Serve()
 		},
 		name:   "CmuxListener",
