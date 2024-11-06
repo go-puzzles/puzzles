@@ -46,3 +46,15 @@ func SetConsulFinderToDefault() {
 func GetConsulServiceFinder() ServiceFinder {
 	return GetConsulClient()
 }
+
+func GetAddress(srv string) string {
+	return GetServiceFinder().GetAddress(srv)
+}
+
+func GetAddresses(srv string) []string {
+	return GetServiceFinder().GetAllAddress(srv)
+}
+
+func GetAddressWithTag(srv, tag string) string {
+	return GetServiceFinder().GetAddressWithTag(srv, tag)
+}
