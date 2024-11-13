@@ -120,3 +120,18 @@ func DayOfYear(t time.Time) int {
 func IsWeekend(t time.Time) bool {
 	return time.Saturday == t.Weekday() || time.Sunday == t.Weekday()
 }
+
+func StartEndDay() (start, end time.Time) {
+	now := time.Now()
+	return BeginOfDay(now), EndOfDay(now)
+}
+
+func StartEndWeek() (start, end time.Time) {
+	now := time.Now()
+	return BeginOfWeek(now), EndOfWeek(now)
+}
+
+func StartEndMonth() (start, end time.Time) {
+	now := time.Now()
+	return BeginOfMonth(now), EndOfMonth(now)
+}
