@@ -149,6 +149,11 @@ func (l *Logger) Errorc(ctx context.Context, msg string, v ...any) {
 	l.logc(ctx, l.logger.ErrorContext, msg, v...)
 }
 
+func (l *Logger) Fatalc(ctx context.Context, msg string, v ...any) {
+	l.logc(ctx, l.logger.ErrorContext, msg, v...)
+	os.Exit(1)
+}
+
 func (l *Logger) Infof(msg string, v ...any) {
 	l.Infoc(context.Background(), msg, v...)
 }
@@ -166,8 +171,7 @@ func (l *Logger) Errorf(msg string, v ...any) {
 }
 
 func (l *Logger) Fatalf(msg string, v ...any) {
-	l.Errorc(context.Background(), msg, v...)
-	os.Exit(1)
+	l.Fatalc(context.Background(), msg, v...)
 }
 
 func (l *Logger) PanicError(err error, v ...any) {

@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
-	
+
 	"github.com/go-logfmt/logfmt"
 	"github.com/go-puzzles/puzzles/plog/level"
 	logctx "github.com/go-puzzles/puzzles/plog/log-ctx"
@@ -22,10 +22,10 @@ type logable interface {
 type Logger struct {
 	callDepth int
 	logLevel  level.Level
-	
+
 	stdout io.Writer
 	stderr io.Writer
-	
+
 	infoLog  *log.Logger
 	debugLog *log.Logger
 	warnLog  *log.Logger
@@ -54,11 +54,11 @@ func New(opts ...Option) *Logger {
 		stderr:    os.Stderr,
 	}
 	l.Enable(level.LevelInfo)
-	
+
 	for _, opt := range opts {
 		opt(l)
 	}
-	
+
 	l.initLogger()
 	return l
 }
@@ -66,10 +66,10 @@ func New(opts ...Option) *Logger {
 func (l *Logger) initLogger() {
 	stdout := l.stdout
 	stderr := l.stderr
-	
+
 	logFlagNoFile := log.LstdFlags | log.Ldate | log.Ltime
 	logFlagWithFile := log.LstdFlags | log.Ldate | log.Ltime | log.Lshortfile
-	
+
 	l.infoLog = log.New(stdout, formatPrefix("[INFO]"), logFlagNoFile)
 	l.debugLog = log.New(stdout, formatPrefix("[DEBUG]"), logFlagWithFile)
 	l.errLog = log.New(stderr, formatPrefix("[ERROR]"), logFlagWithFile)
@@ -93,20 +93,20 @@ func (l *Logger) logFmt(lc *logctx.LogContext, msg string, v ...any) string {
 	if err != nil {
 		return msg + " " + err.Error()
 	}
-	
+
 	msg = s
 	keys = append(keys, lc.Keys...)
 	values = append(values, lc.Values...)
-	
+
 	if len(lc.Group) != 0 {
 		grpMsg := strings.Join(lc.Group, ":")
 		msg = fmt.Sprintf("%s: %s", grpMsg, msg)
 	}
-	
+
 	var buf bytes.Buffer
-	
+
 	encoder := logfmt.NewEncoder(&buf)
-	
+
 	for i := 0; i < len(keys); i++ {
 		encoder.EncodeKeyval(keys[i], values[i])
 	}
@@ -114,7 +114,7 @@ func (l *Logger) logFmt(lc *logctx.LogContext, msg string, v ...any) string {
 	if str == "" {
 		return msg
 	}
-	
+
 	return msg + " " + str
 }
 
@@ -145,7 +145,7 @@ func (l *Logger) Infoc(ctx context.Context, msg string, v ...any) {
 	if !l.checkLevel(level.LevelInfo) {
 		return
 	}
-	
+
 	l.logc(ctx, l.infoLog, msg, v...)
 }
 
@@ -153,7 +153,7 @@ func (l *Logger) Debugc(ctx context.Context, msg string, v ...any) {
 	if !l.checkLevel(level.LevelDebug) {
 		return
 	}
-	
+
 	l.logc(ctx, l.debugLog, msg, v...)
 }
 
@@ -161,7 +161,7 @@ func (l *Logger) Warnc(ctx context.Context, msg string, v ...any) {
 	if !l.checkLevel(level.LevelWarn) {
 		return
 	}
-	
+
 	l.logc(ctx, l.warnLog, msg, v...)
 }
 
@@ -169,8 +169,13 @@ func (l *Logger) Errorc(ctx context.Context, msg string, v ...any) {
 	if !l.checkLevel(level.LevelError) {
 		return
 	}
-	
+
 	l.logc(ctx, l.errLog, msg, v...)
+}
+
+func (l *Logger) Fatalc(ctx context.Context, msg string, v ...any) {
+	l.logc(ctx, l.errLog, msg, v...)
+	os.Exit(1)
 }
 
 func (l *Logger) Infof(msg string, v ...any) {
@@ -190,22 +195,21 @@ func (l *Logger) Errorf(msg string, v ...any) {
 }
 
 func (l *Logger) Fatalf(msg string, v ...any) {
-	l.Errorc(context.Background(), msg, v...)
-	os.Exit(1)
+	l.Fatalc(context.Background(), msg, v...)
 }
 
 func (l *Logger) PanicError(err error, v ...any) {
 	if err == nil {
 		return
 	}
-	
+
 	var s string
 	if len(v) > 0 {
 		s = err.Error() + ":" + fmt.Sprint(v...)
 	} else {
 		s = err.Error()
 	}
-	
+
 	l.Errorc(context.Background(), s)
 	panic(err)
 }
