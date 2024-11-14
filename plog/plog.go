@@ -80,6 +80,10 @@ func Errorc(ctx context.Context, msg string, v ...any) {
 	logger.Errorc(ctx, msg, v...)
 }
 
+func Fatalc(ctx context.Context, msg string, v ...any) {
+	logger.Fatalc(ctx, msg, v...)
+}
+
 func PanicError(err error, v ...any) {
 	if err == nil {
 		return
