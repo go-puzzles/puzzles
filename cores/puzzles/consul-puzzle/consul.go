@@ -8,7 +8,9 @@ import (
 	
 	"github.com/go-puzzles/puzzles/cores"
 	"github.com/go-puzzles/puzzles/cores/discover"
+	"github.com/go-puzzles/puzzles/cores/discover/consul"
 	"github.com/go-puzzles/puzzles/cores/share"
+	"github.com/go-puzzles/puzzles/pflags"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
 )
@@ -16,27 +18,28 @@ import (
 type consulPuzzle struct {
 }
 
-func WithConsulRegsiter() cores.ServiceOption {
+func init() {
+	share.ConsulAddr = pflags.String("consulAddr", share.GetConsulAddr(), "Set the conusl addr.")
+}
+
+func WithConsulRegister() cores.ServiceOption {
 	return func(o *cores.Options) {
 		o.RegisterPuzzle(&consulPuzzle{})
+		discover.SetFinder(consul.GetConsulClient())
 	}
 }
 
 func (cp *consulPuzzle) Name() string {
-	return "ConsulRegsiterHandler"
+	return "ConsulRegisterHandler"
 }
 
 func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) error {
-	if !share.GetConsulEnable() {
-		return errors.New("consul register handler need enable consul first in pflags")
-	}
-	
 	if opt.ListenerAddr == "" {
 		return errors.New("consul register handler can only be used when the service is listening on a port")
 	}
 	
 	if opt.ServiceName == "" {
-		return errors.New("consul register handler need a ServiceName to registe")
+		return errors.New("consul register handler need a ServiceName to register")
 	}
 	
 	if len(opt.Tags) == 0 {
@@ -50,8 +53,8 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 	}
 	
 	var logArgs []any
-	logText := "Registered into consul success. Service=%v"
-	logArgs = append(logArgs, opt.ServiceName)
+	logText := "Registered into consul(%s) success. Service=%v"
+	logArgs = append(logArgs, consul.GetConsulAddress(), opt.ServiceName)
 	if len(tags) > 0 {
 		logText = fmt.Sprintf("%v %v", logText, "Tag=%v")
 		logArgs = append(logArgs, strings.Join(tags, ","))

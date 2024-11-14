@@ -13,12 +13,12 @@ var (
 
 func main() {
 	pflags.Parse(
-		pflags.WithConsulEnable(),
+		// pflags.WithConsulEnable(),
 	)
 	
 	core := cores.NewPuzzleCore(
 		cores.WithService(pflags.GetServiceName()),
-		consulpuzzle.WithConsulRegsiter(),
+		consulpuzzle.WithConsulRegister(),
 	)
 	
 	plog.PanicError(cores.Start(core, port()))

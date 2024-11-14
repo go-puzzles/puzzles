@@ -3,7 +3,7 @@ package consul
 import (
 	"fmt"
 	
-	"github.com/go-puzzles/puzzles/cores/discover"
+	"github.com/go-puzzles/puzzles/cores/share"
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
@@ -11,25 +11,25 @@ import (
 	_ "github.com/spf13/viper/remote"
 )
 
-type consulConfigReader struct{}
+type ConfigReader struct{}
 
-func ConsulReader() *consulConfigReader {
-	return &consulConfigReader{}
+func ConsulReader() *ConfigReader {
+	return &ConfigReader{}
 }
 
-func (cr *consulConfigReader) ReadConfig(v *viper.Viper, opt *reader.ReaderOption) error {
-	if opt.Servicename == "" && opt.Tag == "" {
+func (cr *ConfigReader) ReadConfig(v *viper.Viper, opt *reader.Option) error {
+	if opt.ServiceName == "" && opt.Tag == "" {
 		return errors.New("No service find. ServiceName and Tag is empty.")
 	}
-	path := fmt.Sprintf("/etc/configs/%v/%v.yaml", opt.Servicename, opt.Tag)
-	v.AddRemoteProvider("consul", discover.GetConsulAddress(), path)
+	path := fmt.Sprintf("/etc/configs/%v/%v.yaml", opt.ServiceName, opt.Tag)
+	v.AddRemoteProvider("consul", share.GetConsulAddr(), path)
 	v.SetConfigType("yaml")
 	
 	if err := v.ReadRemoteConfig(); err != nil {
 		return errors.Wrap(err, "readRemoteConfig")
 	}
 	
-	plog.Infof("Read remote config(%v:%v) success. Config=%v", opt.Servicename, opt.Tag, opt.ConfigPath)
+	plog.Infof("Read remote config(%v:%v) success. Config=%v", opt.ServiceName, opt.Tag, opt.ConfigPath)
 	
 	return nil
 }

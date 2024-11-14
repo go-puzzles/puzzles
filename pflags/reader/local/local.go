@@ -26,7 +26,7 @@ func (lr *localConfigReader) fileExists(filePath string) bool {
 	return true
 }
 
-func (lr *localConfigReader) ReadConfig(v *viper.Viper, opt *reader.ReaderOption) error {
+func (lr *localConfigReader) ReadConfig(v *viper.Viper, opt *reader.Option) error {
 	if opt.ConfigPath == "" || !lr.fileExists(opt.ConfigPath) {
 		return nil
 	}

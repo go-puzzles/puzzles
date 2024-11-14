@@ -4,17 +4,14 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/go-puzzles/puzzles/cores/discover"
-	"github.com/go-puzzles/puzzles/cores/discover/consul"
-	"github.com/go-puzzles/puzzles/cores/share"
+	
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/pflags/watcher"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/go-puzzles/puzzles/plog/level"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-
+	
 	localReader "github.com/go-puzzles/puzzles/pflags/reader/local"
 	localWatcher "github.com/go-puzzles/puzzles/pflags/watcher/local"
 )
@@ -30,18 +27,11 @@ var (
 )
 
 type Option struct {
-	useConsul     bool
 	configReader  reader.ConfigReader
 	configWatcher watcher.ConfigWatcher
 }
 
 type OptionFunc func(*Option)
-
-func WithConsulEnable() OptionFunc {
-	return func(o *Option) {
-		o.useConsul = true
-	}
-}
 
 func WithConfigReader(reader reader.ConfigReader) OptionFunc {
 	return func(o *Option) {
@@ -51,19 +41,19 @@ func WithConfigReader(reader reader.ConfigReader) OptionFunc {
 
 func WithConfigWatcher(watchers ...watcher.ConfigWatcher) OptionFunc {
 	return func(o *Option) {
-		var watcher watcher.ConfigWatcher
+		var wt watcher.ConfigWatcher
 		if len(watchers) == 0 {
-			watcher = localWatcher.NewLocalWatcher()
+			wt = localWatcher.NewLocalWatcher()
 		} else {
-			watcher = watchers[0]
+			wt = watchers[0]
 		}
-
-		lw, ok := watcher.(*localWatcher.LocalWatcher)
+		
+		lw, ok := wt.(*localWatcher.LocalWatcher)
 		if ok {
 			lw.SetCallbacks(structConfReload)
 		}
-
-		o.configWatcher = watcher
+		
+		o.configWatcher = wt
 	}
 }
 
@@ -75,24 +65,15 @@ func Viper() *viper.Viper {
 	return v
 }
 
-func initConsulFlag() {
-	share.UseConsul = Bool("useConsul", true, "Whether to use the consul service center.")
-	share.ConsulAddr = String("consulAddr", consul.GetConsulAddress(), "Set the conusl addr.")
-}
-
 func initViper(opt *Option) {
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
 	v.SetConfigFile("config.yaml")
-
+	
 	serviceName = StringP("service", "s", os.Getenv("GO_PUZZLE_SERVICE"), "Set the service name")
 	config = StringP("config", "f", defaultConfigFile, "Specify config file. Support json, yaml.")
 	debug = Bool("debug", false, "Whether to enable debug mode.")
-
-	if opt.useConsul {
-		initConsulFlag()
-	}
-
+	
 	if err := v.BindPFlags(pflag.CommandLine); err != nil {
 		plog.Fatalf("BindPflags error: %v", err)
 	}
@@ -100,15 +81,15 @@ func initViper(opt *Option) {
 
 func initOption(opts ...OptionFunc) *Option {
 	opt := &Option{}
-
+	
 	for _, o := range opts {
 		o(opt)
 	}
-
+	
 	if opt.configReader == nil {
 		opt.configReader = localReader.NewLocalConfigReader()
 	}
-
+	
 	return opt
 }
 
@@ -148,18 +129,13 @@ func readConfig(opt *Option) {
 	if len(sp) > 1 {
 		tag = sp[len(sp)-1]
 	}
-
-	readOpt := &reader.ReaderOption{
-		Servicename: sp[0],
+	
+	readOpt := &reader.Option{
+		ServiceName: sp[0],
 		Tag:         tag,
 		ConfigPath:  config(),
 	}
-
-	// set use consul in flags parse but cancel it in command line
-	if opt.useConsul && !BoolGetter(share.UseConsul).Value() {
-		opt.configReader = localReader.NewLocalConfigReader()
-	}
-
+	
 	if err := opt.configReader.ReadConfig(v, readOpt); err != nil {
 		plog.Fatalf(err.Error())
 	}
@@ -169,17 +145,14 @@ func Parse(opts ...OptionFunc) {
 	opt := initOption(opts...)
 	initViper(opt)
 	pflag.Parse()
-
+	
 	readConfig(opt)
 	checkFlagKey()
-
+	
 	if debug.Value() {
 		plog.Enable(level.LevelDebug)
 	}
-	if BoolGetter(share.UseConsul).Value() {
-		discover.SetFinder(consul.GetConsulClient())
-	}
-
+	
 	if opt.configWatcher != nil {
 		opt.configWatcher.WatchConfig(v, config())
 	}
