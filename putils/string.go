@@ -238,14 +238,46 @@ func (bm *BMSearchEngine) Search(text, pattern string) int {
 	textLength := len(text)
 	patternLength := len(pattern)
 
+	/*
+		i
+		BBC ABCDAB ABCDABCDABDE
+		ABCDABD
+			  j
+		bs = 4 - (7-1-6) = 4
+
+		    i
+		BBC ABCDAB ABCDABCDABDE
+		    ABCDABD
+			      j
+		bs = 7 - (7-1-6) = 7
+
+		           i
+		BBC ABCDAB ABCDABCDABDE
+		           ABCDABD
+			             j
+		bs = 4 - (7-1-6) = 4
+
+		               i
+		BBC ABCDAB ABCDABCDABDE
+		               ABCDABD
+			                 j
+	*/
+
 	for i := 0; i <= textLength-patternLength; {
 		j := patternLength - 1
+
+		// check if the current character(text[i+j]) in text
+		// matches the last character of pattern
 		for j >= 0 && pattern[j] == text[i+j] {
 			j--
 		}
+
 		if j < 0 {
+			// match the pattern exactly
 			return i
 		} else {
+			// character not match: calc badCharShift and goodSuffixShift
+			// and choice the maximum value to shift
 			badCharShift := badCharTable[text[i+j]] - (patternLength - 1 - j)
 			goodSuffixShift := goodSuffixTable[j]
 			i += max(badCharShift, goodSuffixShift)
