@@ -10,7 +10,7 @@ package pgin
 
 import "github.com/gin-gonic/gin"
 
-type bindStratrgy interface {
+type bindStrategy interface {
 	Need(c *gin.Context) bool
 	Bind(c *gin.Context, obj any) error
 }

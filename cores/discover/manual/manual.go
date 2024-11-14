@@ -1,4 +1,4 @@
-package discover
+package manual
 
 type DirectFinder struct{}
 

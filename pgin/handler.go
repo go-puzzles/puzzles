@@ -11,7 +11,7 @@ package pgin
 import (
 	"errors"
 	"net/http"
-
+	
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	bindLoop = []bindStratrgy{
+	bindLoop = []bindStrategy{
 		&headerBind{},
 		&urlBind{},
 		&queryBind{},
@@ -31,12 +31,12 @@ func ParseRequestParams(c *gin.Context, obj any) (err error) {
 		if !b.Need(c) {
 			continue
 		}
-
+		
 		err = b.Bind(c, obj)
 		if err == nil {
 			continue
 		}
-
+		
 		switch err.(type) {
 		case validator.ValidationErrors:
 			err = nil
@@ -46,7 +46,7 @@ func ParseRequestParams(c *gin.Context, obj any) (err error) {
 			return err
 		}
 	}
-
+	
 	return c.Bind(obj)
 }
 
@@ -60,17 +60,17 @@ func RequestHandler[Q any](fn requestHandler[Q]) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		requestPtr := new(Q)
-
+		
 		if err = ParseRequestParams(c, requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		if err = ValidateRequestParams(requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		fn(c, requestPtr)
 	}
 }
@@ -81,23 +81,23 @@ func RequestResponseHandler[Q any, P any](fn requestResponseHandler[Q, P]) gin.H
 	return func(c *gin.Context) {
 		requestPtr := new(Q)
 		var err error
-
+		
 		if err = ParseRequestParams(c, requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		if err = ValidateRequestParams(requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		resp, err := fn(c, requestPtr)
 		if err != nil {
 			parseError(c, err)
 			return
 		}
-
+		
 		c.JSON(http.StatusOK, SuccessRet(resp))
 	}
 }
@@ -111,7 +111,7 @@ func ResponseHandler[P any](fn responseHandler[P]) gin.HandlerFunc {
 			parseError(c, err)
 			return
 		}
-
+		
 		c.JSON(http.StatusOK, SuccessRet(resp))
 	}
 }
@@ -125,7 +125,7 @@ func ErrorReturnHandler(fn errorReturnHandler) gin.HandlerFunc {
 			parseError(c, err)
 			return
 		}
-
+		
 		c.JSON(http.StatusOK, SuccessRet(nil))
 	}
 }
@@ -137,7 +137,7 @@ func parseError(c *gin.Context, err error) {
 		respCode int
 		message  string
 	)
-
+	
 	if errors.As(err, &ie) {
 		code = ie.Code()
 		respCode = ie.Code()
@@ -147,11 +147,11 @@ func parseError(c *gin.Context, err error) {
 		respCode = code
 		message = err.Error()
 	}
-
+	
 	if http.StatusText(code) == "" {
 		code = http.StatusBadRequest
 	}
-
+	
 	c.JSON(code, ErrorRet(respCode, message))
 	plog.Errorf("handle request: %s error: %v", c.Request.URL.Path, err)
 }
@@ -162,22 +162,22 @@ func RequestWithErrorHandler[Q any](fn requestWithErrorHandler[Q]) gin.HandlerFu
 	return func(c *gin.Context) {
 		requestPtr := new(Q)
 		var err error
-
+		
 		if err = ParseRequestParams(c, requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		if err = ValidateRequestParams(requestPtr); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
-
+		
 		if err := fn(c, requestPtr); err != nil {
 			parseError(c, err)
 			return
 		}
-
+		
 		c.JSON(http.StatusOK, SuccessRet(nil))
 	}
 }

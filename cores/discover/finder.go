@@ -2,6 +2,8 @@ package discover
 
 import (
 	"sync"
+
+	"github.com/go-puzzles/puzzles/cores/discover/manual"
 )
 
 type Service struct {
@@ -28,7 +30,7 @@ var (
 )
 
 func init() {
-	defaultServiceFinder = NewDirectFinder()
+	defaultServiceFinder = manual.NewDirectFinder()
 }
 
 func GetServiceFinder() ServiceFinder {
@@ -37,14 +39,10 @@ func GetServiceFinder() ServiceFinder {
 	return defaultServiceFinder
 }
 
-func SetConsulFinderToDefault() {
+func SetFinder(finder ServiceFinder) {
 	finderMutex.Lock()
 	defer finderMutex.Unlock()
-	defaultServiceFinder = GetConsulServiceFinder()
-}
-
-func GetConsulServiceFinder() ServiceFinder {
-	return GetConsulClient()
+	defaultServiceFinder = finder
 }
 
 func GetAddress(srv string) string {

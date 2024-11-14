@@ -3,16 +3,20 @@ package dialer
 import (
 	"database/sql"
 	"time"
-
+	
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+)
+
+const (
+	DefaultUserName = "root"
 )
 
 type DialOption struct {
 	User     string
 	Password string
 	DBName   string
-
+	
 	SqliteCache bool
 	Logger      logger.Interface
 }
@@ -44,26 +48,26 @@ func WithLogger(log logger.Interface) OptionFunc {
 	}
 }
 
-func packDialOption(opts ...OptionFunc) *DialOption {
+func PackDialOption(opts ...OptionFunc) *DialOption {
 	opt := &DialOption{}
 	for _, o := range opts {
 		o(opt)
 	}
-
+	
 	if opt.User == "" {
 		opt.User = DefaultUserName
 	}
-
+	
 	return opt
 }
 
-func configDB(sqlDB *sql.DB) {
+func ConfigDB(sqlDB *sql.DB) {
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 }
 
-func defaultGormConfig(opt *DialOption) *gorm.Config {
+func DefaultGormConfig(opt *DialOption) *gorm.Config {
 	return &gorm.Config{
 		PrepareStmt: true,
 		Logger:      opt.Logger,

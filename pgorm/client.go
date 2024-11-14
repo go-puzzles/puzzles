@@ -6,15 +6,15 @@ import (
 	"gorm.io/gorm"
 )
 
-type dbType int
+type DbType int
 
 const (
-	mysql = iota
-	sqlite
+	DbMysql = iota
+	DbSqlite
 )
 
 type Config interface {
-	GetDBType() dbType
+	GetDBType() DbType
 	GetUid() string
 	GetService() string
 	DialGorm() (*gorm.DB, error)

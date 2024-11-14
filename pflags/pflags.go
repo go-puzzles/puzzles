@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-puzzles/puzzles/cores/discover"
+	"github.com/go-puzzles/puzzles/cores/discover/consul"
 	"github.com/go-puzzles/puzzles/cores/share"
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/pflags/watcher"
@@ -76,7 +77,7 @@ func Viper() *viper.Viper {
 
 func initConsulFlag() {
 	share.UseConsul = Bool("useConsul", true, "Whether to use the consul service center.")
-	share.ConsulAddr = String("consulAddr", discover.GetConsulAddress(), "Set the conusl addr.")
+	share.ConsulAddr = String("consulAddr", consul.GetConsulAddress(), "Set the conusl addr.")
 }
 
 func initViper(opt *Option) {
@@ -176,7 +177,7 @@ func Parse(opts ...OptionFunc) {
 		plog.Enable(level.LevelDebug)
 	}
 	if BoolGetter(share.UseConsul).Value() {
-		discover.SetConsulFinderToDefault()
+		discover.SetFinder(consul.GetConsulClient())
 	}
 
 	if opt.configWatcher != nil {

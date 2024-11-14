@@ -1,4 +1,4 @@
-package discover
+package consul
 
 import (
 	"testing"

@@ -1,7 +1,7 @@
 package predis
 
 import (
-	"github.com/go-puzzles/puzzles/dialer"
+	redis2 "github.com/go-puzzles/puzzles/dialer/redis"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -13,7 +13,7 @@ type RedisConf struct {
 }
 
 func (conf *RedisConf) DialRedisPool() *redis.Pool {
-	return dialer.DialRedisPool(
+	return redis2.DialRedisPool(
 		conf.Server,
 		conf.Db,
 		conf.MaxIdle,
@@ -21,9 +21,9 @@ func (conf *RedisConf) DialRedisPool() *redis.Pool {
 	)
 }
 
-func (rc *RedisConf) SetDefault() {
-	if rc.Server == "" && rc.MaxIdle == 0 {
-		rc.Server = "localhost:6379"
-		rc.MaxIdle = 100
+func (conf *RedisConf) SetDefault() {
+	if conf.Server == "" && conf.MaxIdle == 0 {
+		conf.Server = "localhost:6379"
+		conf.MaxIdle = 100
 	}
 }

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
+	
 	"github.com/go-puzzles/puzzles/dialer"
-	thirdparty "github.com/go-puzzles/puzzles/plog/third-party"
+	"github.com/go-puzzles/puzzles/dialer/mysql"
 	"gorm.io/gorm"
+	
+	thirdparty "github.com/go-puzzles/puzzles/plog/third-party"
 )
 
 type MysqlDsn struct {
@@ -19,12 +21,12 @@ func (m *MysqlDsn) Validate() error {
 	if m.DSN == "" {
 		return errors.New("mysql config need DSN")
 	}
-
+	
 	return nil
 }
 
-func (m *MysqlDsn) GetDBType() dbType {
-	return mysql
+func (m *MysqlDsn) GetDBType() DbType {
+	return DbMysql
 }
 
 func (m *MysqlDsn) GetService() string {
@@ -36,7 +38,7 @@ func (m *MysqlDsn) GetUid() string {
 }
 
 func (m *MysqlDsn) DialGorm() (*gorm.DB, error) {
-	return dialer.DialMysqlGormWithDSN(m.DSN)
+	return mysql.DialMysqlGormWithDSN(m.DSN)
 }
 
 type MysqlConfig struct {
@@ -56,8 +58,8 @@ func (m *MysqlConfig) Validate() error {
 	return nil
 }
 
-func (m *MysqlConfig) GetDBType() dbType {
-	return mysql
+func (m *MysqlConfig) GetDBType() DbType {
+	return DbMysql
 }
 
 func (m *MysqlConfig) GetService() string {
@@ -71,8 +73,8 @@ func (m *MysqlConfig) GetUid() string {
 func (m *MysqlConfig) DialGorm() (*gorm.DB, error) {
 	m.TrimSpace()
 	logPrefix := fmt.Sprintf("mysql:%s", m.Database)
-
-	return dialer.DialMysqlGorm(
+	
+	return mysql.DialMysqlGorm(
 		m.Instance,
 		dialer.WithAuth(m.Username, m.Password),
 		dialer.WithDBName(m.Database),

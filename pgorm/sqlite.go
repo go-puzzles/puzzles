@@ -3,18 +3,20 @@ package pgorm
 import (
 	"fmt"
 	"time"
-
+	
 	"github.com/go-puzzles/puzzles/dialer"
-	thirdparty "github.com/go-puzzles/puzzles/plog/third-party"
+	"github.com/go-puzzles/puzzles/dialer/sqlite"
 	"gorm.io/gorm"
+	
+	thirdparty "github.com/go-puzzles/puzzles/plog/third-party"
 )
 
 type SqliteConfig struct {
 	DbFile string
 }
 
-func (s *SqliteConfig) GetDBType() dbType {
-	return sqlite
+func (s *SqliteConfig) GetDBType() DbType {
+	return DbSqlite
 }
 
 func (s *SqliteConfig) GetService() string {
@@ -27,7 +29,7 @@ func (s *SqliteConfig) GetUid() string {
 
 func (s *SqliteConfig) DialGorm() (*gorm.DB, error) {
 	logPrefix := fmt.Sprintf("sqlite:%s", s.DbFile)
-	return dialer.DialSqlLiteGorm(
+	return sqlite.DialSqlLiteGorm(
 		s.DbFile,
 		dialer.WithLogger(
 			thirdparty.NewGormLogger(
