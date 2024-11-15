@@ -24,44 +24,40 @@ const (
 	LowPriorityFirst
 )
 
-type PriorityItem interface {
-	Priority() int
-	Value() any
+type priorityItem[T any] struct {
+	item     T
+	index    int
+	priority int
 }
 
-type priorityItem struct {
-	index int
-	Item  PriorityItem
-}
-
-type queue struct {
-	q            []*priorityItem
+type queue[T any] struct {
+	q            []*priorityItem[T]
 	priorityMode PriorityMode
 }
 
-func (q queue) Len() int { return len(q.q) }
+func (q queue[T]) Len() int { return len(q.q) }
 
-func (q queue) Less(i, j int) bool {
+func (q queue[T]) Less(i, j int) bool {
 	if q.priorityMode == HighPriorityFirst {
-		return q.q[i].Item.Priority() > q.q[j].Item.Priority()
+		return q.q[i].priority > q.q[j].priority
 	}
-	return q.q[i].Item.Priority() < q.q[j].Item.Priority()
+	return q.q[i].priority < q.q[j].priority
 }
 
-func (q queue) Swap(i, j int) {
+func (q queue[T]) Swap(i, j int) {
 	q.q[i], q.q[j] = q.q[j], q.q[i]
 	q.q[i].index = i
 	q.q[j].index = j
 }
 
-func (q *queue) Push(a any) {
+func (q *queue[T]) Push(a any) {
 	n := len(q.q)
-	item := a.(*priorityItem)
+	item := a.(*priorityItem[T])
 	item.index = n
 	q.q = append(q.q, item)
 }
 
-func (q *queue) Pop() any {
+func (q *queue[T]) Pop() any {
 	old := q.q
 	n := len(old)
 	item := old[n-1]
@@ -71,58 +67,65 @@ func (q *queue) Pop() any {
 	return item
 }
 
-type PriorityQueue struct {
-	lock         sync.RWMutex
-	data         queue
+type PriorityQueue[T any] struct {
+	lock sync.RWMutex
+	data queue[T]
+	opts *priorityOpts
+}
+
+type priorityOpts struct {
 	priorityMode PriorityMode
 }
 
-type PriorityQueueOption func(*PriorityQueue)
+type PriorityQueueOption func(*priorityOpts)
 
 func WithPriorityMode(mode PriorityMode) PriorityQueueOption {
-	return func(pq *PriorityQueue) {
+	return func(pq *priorityOpts) {
 		pq.priorityMode = mode
 	}
 }
 
-func NewPriorityQueue(opts ...PriorityQueueOption) *PriorityQueue {
-	pq := &PriorityQueue{
-		data: queue{
-			q: make([]*priorityItem, 0),
+func NewPriorityQueue[T any](opts ...PriorityQueueOption) *PriorityQueue[T] {
+	pq := &PriorityQueue[T]{
+		opts: &priorityOpts{},
+		data: queue[T]{
+			q: make([]*priorityItem[T], 0),
 		},
 	}
 	for _, opt := range opts {
-		opt(pq)
+		opt(pq.opts)
 	}
 
-	pq.data.priorityMode = pq.priorityMode
+	pq.data.priorityMode = pq.opts.priorityMode
 	return pq
 }
 
-func (pq *PriorityQueue) Len() int {
+func (pq *PriorityQueue[T]) Len() int {
 	pq.lock.RLock()
 	defer pq.lock.RUnlock()
 	return pq.data.Len()
 }
 
-func (pq *PriorityQueue) Pop() (PriorityItem, error) {
+func (pq *PriorityQueue[T]) Pop() (T, error) {
 	pq.lock.Lock()
 	defer pq.lock.Unlock()
 
 	if pq.data.Len() == 0 {
-		return nil, ErrEmpty
+		var zero T
+		return zero, ErrEmpty
 	}
 
-	item := heap.Pop(&pq.data).(*priorityItem)
-	return item.Item, nil
+	item := heap.Pop(&pq.data).(*priorityItem[T])
+	return item.item, nil
 }
 
-func (pq *PriorityQueue) Push(i PriorityItem) error {
+func (pq *PriorityQueue[T]) Push(i T, priority int) error {
 	pq.lock.Lock()
 	defer pq.lock.Unlock()
 
-	pi := &priorityItem{
-		Item: i,
+	pi := &priorityItem[T]{
+		item:     i,
+		priority: priority,
 	}
 	heap.Push(&pq.data, pi)
 	return nil

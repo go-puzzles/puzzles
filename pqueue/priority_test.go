@@ -26,11 +26,11 @@ func (m *mockItem) Value() any {
 }
 
 func TestHighPriorityQueue(t *testing.T) {
-	pq := NewPriorityQueue(WithPriorityMode(HighPriorityFirst))
+	pq := NewPriorityQueue[*mockItem](WithPriorityMode(HighPriorityFirst))
 
-	pq.Push(&mockItem{priority: 1, value: "low"})
-	pq.Push(&mockItem{priority: 10, value: "high"})
-	pq.Push(&mockItem{priority: 3, value: "medium"})
+	pq.Push(&mockItem{priority: 1, value: "low"}, 1)
+	pq.Push(&mockItem{priority: 10, value: "high"}, 10)
+	pq.Push(&mockItem{priority: 3, value: "medium"}, 3)
 
 	item, err := pq.Pop()
 	if err != nil || item.Value() != "high" {
@@ -39,11 +39,11 @@ func TestHighPriorityQueue(t *testing.T) {
 }
 
 func TestLowPriorityQueue(t *testing.T) {
-	pq := NewPriorityQueue(WithPriorityMode(LowPriorityFirst))
+	pq := NewPriorityQueue[*mockItem](WithPriorityMode(LowPriorityFirst))
 
-	pq.Push(&mockItem{priority: 5, value: "high"})
-	pq.Push(&mockItem{priority: 1, value: "low"})
-	pq.Push(&mockItem{priority: 3, value: "medium"})
+	pq.Push(&mockItem{priority: 5, value: "high"}, 5)
+	pq.Push(&mockItem{priority: 1, value: "low"}, 1)
+	pq.Push(&mockItem{priority: 3, value: "medium"}, 3)
 
 	item, err := pq.Pop()
 	if err != nil || item.Value() != "low" {
@@ -52,10 +52,10 @@ func TestLowPriorityQueue(t *testing.T) {
 }
 
 func BenchmarkPriorityQueue(b *testing.B) {
-	pq := NewPriorityQueue(WithPriorityMode(HighPriorityFirst))
+	pq := NewPriorityQueue[*mockItem](WithPriorityMode(HighPriorityFirst))
 
 	for i := 0; i < b.N; i++ {
-		pq.Push(&mockItem{priority: i, value: "item"})
+		pq.Push(&mockItem{priority: i, value: "item"}, i)
 	}
 
 	for i := 0; i < b.N; i++ {
