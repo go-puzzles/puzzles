@@ -14,6 +14,8 @@ import (
 	"sync"
 )
 
+var _ Queue[PriorityItem] = (*PriorityQueue[PriorityItem])(nil)
+
 // ErrEmpty is returned for queues with no items
 var ErrEmpty = errors.New("queue is empty")
 
@@ -24,13 +26,16 @@ const (
 	LowPriorityFirst
 )
 
-type priorityItem[T any] struct {
-	item     T
-	index    int
-	priority int
+type PriorityItem interface {
+	Priority() int
 }
 
-type queue[T any] struct {
+type priorityItem[T PriorityItem] struct {
+	item  T
+	index int
+}
+
+type queue[T PriorityItem] struct {
 	q            []*priorityItem[T]
 	priorityMode PriorityMode
 }
@@ -39,9 +44,9 @@ func (q queue[T]) Len() int { return len(q.q) }
 
 func (q queue[T]) Less(i, j int) bool {
 	if q.priorityMode == HighPriorityFirst {
-		return q.q[i].priority > q.q[j].priority
+		return q.q[i].item.Priority() > q.q[j].item.Priority()
 	}
-	return q.q[i].priority < q.q[j].priority
+	return q.q[i].item.Priority() < q.q[j].item.Priority()
 }
 
 func (q queue[T]) Swap(i, j int) {
@@ -67,7 +72,7 @@ func (q *queue[T]) Pop() any {
 	return item
 }
 
-type PriorityQueue[T any] struct {
+type PriorityQueue[T PriorityItem] struct {
 	lock sync.RWMutex
 	data queue[T]
 	opts *priorityOpts
@@ -85,7 +90,7 @@ func WithPriorityMode(mode PriorityMode) PriorityQueueOption {
 	}
 }
 
-func NewPriorityQueue[T any](opts ...PriorityQueueOption) *PriorityQueue[T] {
+func NewPriorityQueue[T PriorityItem](opts ...PriorityQueueOption) *PriorityQueue[T] {
 	pq := &PriorityQueue[T]{
 		opts: &priorityOpts{},
 		data: queue[T]{
@@ -100,13 +105,13 @@ func NewPriorityQueue[T any](opts ...PriorityQueueOption) *PriorityQueue[T] {
 	return pq
 }
 
-func (pq *PriorityQueue[T]) Len() int {
+func (pq *PriorityQueue[T]) Size() (int, error) {
 	pq.lock.RLock()
 	defer pq.lock.RUnlock()
-	return pq.data.Len()
+	return pq.data.Len(), nil
 }
 
-func (pq *PriorityQueue[T]) Pop() (T, error) {
+func (pq *PriorityQueue[T]) Dequeue() (T, error) {
 	pq.lock.Lock()
 	defer pq.lock.Unlock()
 
@@ -119,14 +124,19 @@ func (pq *PriorityQueue[T]) Pop() (T, error) {
 	return item.item, nil
 }
 
-func (pq *PriorityQueue[T]) Push(i T, priority int) error {
+func (pq *PriorityQueue[T]) Enqueue(i T) error {
 	pq.lock.Lock()
 	defer pq.lock.Unlock()
 
 	pi := &priorityItem[T]{
-		item:     i,
-		priority: priority,
+		item: i,
 	}
 	heap.Push(&pq.data, pi)
 	return nil
+}
+
+func (pq *PriorityQueue[T]) IsEmpty() (bool, error) {
+	pq.lock.RLock()
+	defer pq.lock.RUnlock()
+	return pq.data.Len() == 0, nil
 }
