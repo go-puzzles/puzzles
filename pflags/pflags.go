@@ -4,14 +4,15 @@ import (
 	"os"
 	"strings"
 	"time"
-	
+
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/pflags/watcher"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/go-puzzles/puzzles/plog/level"
+	"github.com/go-puzzles/puzzles/snail"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	
+
 	localReader "github.com/go-puzzles/puzzles/pflags/reader/local"
 	localWatcher "github.com/go-puzzles/puzzles/pflags/watcher/local"
 )
@@ -47,12 +48,12 @@ func WithConfigWatcher(watchers ...watcher.ConfigWatcher) OptionFunc {
 		} else {
 			wt = watchers[0]
 		}
-		
+
 		lw, ok := wt.(*localWatcher.LocalWatcher)
 		if ok {
 			lw.SetCallbacks(structConfReload)
 		}
-		
+
 		o.configWatcher = wt
 	}
 }
@@ -69,11 +70,11 @@ func initViper(opt *Option) {
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
 	v.SetConfigFile("config.yaml")
-	
+
 	serviceName = StringP("service", "s", os.Getenv("GO_PUZZLE_SERVICE"), "Set the service name")
 	config = StringP("config", "f", defaultConfigFile, "Specify config file. Support json, yaml.")
 	debug = Bool("debug", false, "Whether to enable debug mode.")
-	
+
 	if err := v.BindPFlags(pflag.CommandLine); err != nil {
 		plog.Fatalf("BindPflags error: %v", err)
 	}
@@ -81,15 +82,15 @@ func initViper(opt *Option) {
 
 func initOption(opts ...OptionFunc) *Option {
 	opt := &Option{}
-	
+
 	for _, o := range opts {
 		o(opt)
 	}
-	
+
 	if opt.configReader == nil {
 		opt.configReader = localReader.NewLocalConfigReader()
 	}
-	
+
 	return opt
 }
 
@@ -129,13 +130,13 @@ func readConfig(opt *Option) {
 	if len(sp) > 1 {
 		tag = sp[len(sp)-1]
 	}
-	
+
 	readOpt := &reader.Option{
 		ServiceName: sp[0],
 		Tag:         tag,
 		ConfigPath:  config(),
 	}
-	
+
 	if err := opt.configReader.ReadConfig(v, readOpt); err != nil {
 		plog.Fatalf(err.Error())
 	}
@@ -145,17 +146,19 @@ func Parse(opts ...OptionFunc) {
 	opt := initOption(opts...)
 	initViper(opt)
 	pflag.Parse()
-	
+
 	readConfig(opt)
 	checkFlagKey()
-	
+
 	if debug.Value() {
 		plog.Enable(level.LevelDebug)
 	}
-	
+
 	if opt.configWatcher != nil {
 		opt.configWatcher.WatchConfig(v, config())
 	}
+
+	snail.Init()
 }
 
 func BindPFlag(key string, flag *pflag.Flag) {
