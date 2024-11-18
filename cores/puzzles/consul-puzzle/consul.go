@@ -14,17 +14,25 @@ import (
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/go-puzzles/puzzles/snail"
 	"github.com/pkg/errors"
+
+	consulReader "github.com/go-puzzles/puzzles/pflags/reader/consul"
 )
 
 type consulPuzzle struct {
 }
 
 var (
-	consulAddr = pflags.String("consulAddr", share.GetConsulAddr(), "Set the conusl addr.")
+	consulAddr      = pflags.String("consulAddr", share.GetConsulAddr(), "Set the conusl addr.")
+	useRemoteConfig = pflags.Bool("useRemoteConfig", false, "Whether to use remote configuration")
 )
 
 func init() {
 	share.ConsulAddr = consulAddr
+
+	snail.RegisterObject("setConsulConfigReader", func() error {
+		pflags.SetDefaultConfigReader(consulReader.ConsulReader())
+		return nil
+	})
 	snail.RegisterObject("setConsulClient", func() error {
 		discover.SetFinder(consul.GetConsulClient())
 		return nil

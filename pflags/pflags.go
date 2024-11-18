@@ -25,6 +25,9 @@ var (
 	serviceName       StringGetter
 	debug             BoolGetter
 	config            StringGetter
+
+	defaultConfigReader  reader.ConfigReader   = localReader.NewLocalConfigReader()
+	defaultConfigWatcher watcher.ConfigWatcher = localWatcher.NewLocalWatcher()
 )
 
 type Option struct {
@@ -58,6 +61,14 @@ func WithConfigWatcher(watchers ...watcher.ConfigWatcher) OptionFunc {
 	}
 }
 
+func SetDefaultConfigReader(reader reader.ConfigReader) {
+	defaultConfigReader = reader
+}
+
+func SetDefaultConfigWatcher(watchers watcher.ConfigWatcher) {
+	defaultConfigWatcher = watchers
+}
+
 func OverrideDefaultConfigFile(configFile string) {
 	defaultConfigFile = configFile
 }
@@ -66,7 +77,7 @@ func Viper() *viper.Viper {
 	return v
 }
 
-func initViper(opt *Option) {
+func initViper() {
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
 	v.SetConfigFile("config.yaml")
@@ -88,7 +99,11 @@ func initOption(opts ...OptionFunc) *Option {
 	}
 
 	if opt.configReader == nil {
-		opt.configReader = localReader.NewLocalConfigReader()
+		opt.configReader = defaultConfigReader
+	}
+
+	if opt.configWatcher == nil {
+		opt.configWatcher = defaultConfigWatcher
 	}
 
 	return opt
@@ -126,7 +141,7 @@ func isZero(i interface{}) bool {
 
 func readConfig(opt *Option) {
 	sp := strings.Split(serviceName(), ":")
-	tag := ""
+	tag := "dev"
 	if len(sp) > 1 {
 		tag = sp[len(sp)-1]
 	}
@@ -143,9 +158,11 @@ func readConfig(opt *Option) {
 }
 
 func Parse(opts ...OptionFunc) {
-	opt := initOption(opts...)
-	initViper(opt)
+	initViper()
 	pflag.Parse()
+
+	snail.Init()
+	opt := initOption(opts...)
 
 	readConfig(opt)
 	checkFlagKey()
@@ -157,8 +174,6 @@ func Parse(opts ...OptionFunc) {
 	if opt.configWatcher != nil {
 		opt.configWatcher.WatchConfig(v, config())
 	}
-
-	snail.Init()
 }
 
 func BindPFlag(key string, flag *pflag.Flag) {

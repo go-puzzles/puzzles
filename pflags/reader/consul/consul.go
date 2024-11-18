@@ -2,7 +2,7 @@ package consul
 
 import (
 	"fmt"
-	
+
 	"github.com/go-puzzles/puzzles/cores/share"
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/plog"
@@ -22,14 +22,15 @@ func (cr *ConfigReader) ReadConfig(v *viper.Viper, opt *reader.Option) error {
 		return errors.New("No service find. ServiceName and Tag is empty.")
 	}
 	path := fmt.Sprintf("/etc/configs/%v/%v.yaml", opt.ServiceName, opt.Tag)
+	plog.Infof("Reading consul config from %v", path)
 	v.AddRemoteProvider("consul", share.GetConsulAddr(), path)
 	v.SetConfigType("yaml")
-	
+
 	if err := v.ReadRemoteConfig(); err != nil {
 		return errors.Wrap(err, "readRemoteConfig")
 	}
-	
+
 	plog.Infof("Read remote config(%v:%v) success. Config=%v", opt.ServiceName, opt.Tag, opt.ConfigPath)
-	
+
 	return nil
 }
