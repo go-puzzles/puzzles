@@ -31,6 +31,10 @@ func NewRedisClientWithAddr(addr string, db int, maxIdle int, password ...string
 	return NewRedisClient(pool)
 }
 
+func (rc *RedisClient) GetPool() *redis.Pool {
+	return rc.pool
+}
+
 func (rc *RedisClient) GetConn() redis.Conn {
 	conn, _ := rc.GetConnWithContext(context.TODO())
 	return conn
