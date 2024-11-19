@@ -30,6 +30,10 @@ func init() {
 	share.ConsulAddr = consulAddr
 
 	snail.RegisterObject("setConsulConfigReader", func() error {
+		if !useRemoteConfig() {
+			return nil
+		}
+
 		pflags.SetDefaultConfigReader(consulReader.ConsulReader())
 		return nil
 	})
