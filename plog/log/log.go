@@ -179,23 +179,40 @@ func (l *Logger) Fatalc(ctx context.Context, msg string, v ...any) {
 }
 
 func (l *Logger) Infof(msg string, v ...any) {
-	l.Infoc(context.Background(), msg, v...)
+	if !l.checkLevel(level.LevelInfo) {
+		return
+	}
+
+	l.logc(context.TODO(), l.infoLog, msg, v...)
 }
 
 func (l *Logger) Debugf(msg string, v ...any) {
-	l.Debugc(context.Background(), msg, v...)
+	if !l.checkLevel(level.LevelDebug) {
+		return
+	}
+
+	l.logc(context.TODO(), l.debugLog, msg, v...)
 }
 
 func (l *Logger) Warnf(msg string, v ...any) {
-	l.Warnc(context.Background(), msg, v...)
+	if !l.checkLevel(level.LevelWarn) {
+		return
+	}
+
+	l.logc(context.TODO(), l.warnLog, msg, v...)
 }
 
 func (l *Logger) Errorf(msg string, v ...any) {
-	l.Errorc(context.Background(), msg, v...)
+	if !l.checkLevel(level.LevelError) {
+		return
+	}
+
+	l.logc(context.TODO(), l.errLog, msg, v...)
 }
 
 func (l *Logger) Fatalf(msg string, v ...any) {
-	l.Fatalc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.errLog, msg, v...)
+	os.Exit(1)
 }
 
 func (l *Logger) PanicError(err error, v ...any) {

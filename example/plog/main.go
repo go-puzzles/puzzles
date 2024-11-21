@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
+
 	"github.com/go-puzzles/puzzles/pflags"
 	"github.com/go-puzzles/puzzles/plog"
-	"github.com/go-puzzles/puzzles/plog/slog"
 )
 
 var (
@@ -11,18 +12,21 @@ var (
 )
 
 func main() {
-	plog.SetSlog()
+	// plog.SetSlog()
 	pflags.Parse()
 
-	logConf := new(plog.LogConfig)
-	plog.PanicError(logConfFlag(logConf))
+	// logConf := new(plog.LogConfig)
+	// plog.PanicError(logConfFlag(logConf))
 
-	plog.Infof("%v", logConf)
-	plog.EnableLogToFile(logConf)
+	// plog.Infof("%v", logConf)
+	// plog.EnableLogToFile(logConf)
 
-	plog.Infof("this is info log")
-	plog.Errorf("this is error log")
+	// plog.Infof("this is info log")
+	// plog.Errorf("this is error log")
 
-	logger := slog.New()
-	logger.Infof("this is single logger")
+	// logger := slog.New()
+	// logger.Infof("this is single logger")
+
+	plog.Debugf("this is format log")
+	plog.Debugc(context.Background(), "this is context log: %v", 111)
 }
