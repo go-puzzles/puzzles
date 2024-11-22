@@ -150,6 +150,7 @@ func parseError(c *gin.Context, err error) {
 
 	if code == http.StatusOK || http.StatusText(code) == "" {
 		code = http.StatusBadRequest
+		respCode = http.StatusBadRequest
 	}
 
 	c.JSON(code, ErrorRet(respCode, message))
