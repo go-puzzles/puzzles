@@ -8,8 +8,6 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/pkg/errors"
-
-	redisDialer "github.com/go-puzzles/puzzles/dialer/redis"
 )
 
 var (
@@ -24,15 +22,6 @@ func NewRedisClient(pool *redis.Pool) *RedisClient {
 	return &RedisClient{
 		pool: pool,
 	}
-}
-
-func NewRedisClientWithAddr(addr string, db int, maxIdle int, password ...string) *RedisClient {
-	pool := redisDialer.DialRedisPool(addr, db, maxIdle, password...)
-	return NewRedisClient(pool)
-}
-
-func (rc *RedisClient) GetPool() *redis.Pool {
-	return rc.pool
 }
 
 func (rc *RedisClient) GetConn() redis.Conn {
@@ -213,4 +202,170 @@ func (rc *RedisClient) UnLock(key string) (err error) {
 
 func (rc *RedisClient) Close() error {
 	return rc.pool.Close()
+}
+
+// LPush pushes one or more values to the head of the list stored at key
+// If the list does not exist, it is created as an empty list before performing the push operations
+//
+// Parameters:
+// - key: The key of the list
+// - values: One or more values to push to the list
+//
+// Returns:
+// - int: The length of the list after the push operations
+// - error: An error if the operation failed
+func (rc *RedisClient) LPush(key string, values ...any) (int, error) {
+	args := make([]any, 0, len(values)+1)
+	args = append(args, key)
+
+	for _, value := range values {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return 0, errors.Wrap(err, "encode value")
+		}
+		args = append(args, data)
+	}
+
+	reply, err := redis.Int(rc.Do("LPUSH", args...))
+	if err != nil {
+		return 0, errors.Wrap(err, "redis.LPUSH")
+	}
+	return reply, nil
+}
+
+// RPush appends one or more values to the tail of the list stored at key
+// If the list does not exist, it is created as an empty list before performing the push operations
+//
+// Parameters:
+// - key: The key of the list
+// - values: One or more values to push to the list
+//
+// Returns:
+// - int: The length of the list after the push operations
+// - error: An error if the operation failed
+func (rc *RedisClient) RPush(key string, values ...any) (int, error) {
+	args := make([]any, 0, len(values)+1)
+	args = append(args, key)
+
+	for _, value := range values {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return 0, errors.Wrap(err, "encode value")
+		}
+		args = append(args, data)
+	}
+
+	reply, err := redis.Int(rc.Do("RPUSH", args...))
+	if err != nil {
+		return 0, errors.Wrap(err, "redis.RPUSH")
+	}
+	return reply, nil
+}
+
+// LPop removes and returns the first element of the list stored at key
+// If the list does not exist or is empty, it returns an error
+//
+// Parameters:
+// - key: The key of the list
+// - out: A pointer to the variable where the popped value will be stored
+//
+// Returns:
+// - error: An error if the operation failed or if the list is empty
+func (rc *RedisClient) LPop(key string, out any) error {
+	data, err := redis.Bytes(rc.Do("LPOP", key))
+	if err == redis.ErrNil {
+		return errors.New("list is empty")
+	}
+	if err != nil {
+		return errors.Wrap(err, "redis.LPOP")
+	}
+
+	if err := json.Unmarshal(data, out); err != nil {
+		return errors.Wrap(err, "decode value")
+	}
+	return nil
+}
+
+// RPop removes and returns the last element of the list stored at key
+// If the list does not exist or is empty, it returns an error
+//
+// Parameters:
+// - key: The key of the list
+// - out: A pointer to the variable where the popped value will be stored
+//
+// Returns:
+// - error: An error if the operation failed or if the list is empty
+func (rc *RedisClient) RPop(key string, out any) error {
+	data, err := redis.Bytes(rc.Do("RPOP", key))
+	if err == redis.ErrNil {
+		return errors.New("list is empty")
+	}
+	if err != nil {
+		return errors.Wrap(err, "redis.RPOP")
+	}
+
+	if err := json.Unmarshal(data, out); err != nil {
+		return errors.Wrap(err, "decode value")
+	}
+	return nil
+}
+
+// LRange returns the specified elements of the list stored at key
+// The offsets start and stop are zero-based indexes
+// These offsets can also be negative numbers indicating offsets starting at the end of the list
+// For example, -1 is the last element of the list, -2 the penultimate, and so on
+//
+// Parameters:
+// - key: The key of the list
+// - start: The starting position (inclusive)
+// - stop: The ending position (inclusive)
+// - out: A pointer to the slice where the range of elements will be stored
+//
+// Returns:
+// - error: An error if the operation failed
+func (rc *RedisClient) LRange(key string, start, stop int, out any) error {
+	reply, err := redis.ByteSlices(rc.Do("LRANGE", key, start, stop))
+	if err != nil {
+		return errors.Wrap(err, "redis.LRANGE")
+	}
+
+	// Create a temporary slice to store decoded data
+	var temp []any
+	for _, item := range reply {
+		var value any
+		if err := json.Unmarshal(item, &value); err != nil {
+			return errors.Wrap(err, "decode value")
+		}
+		temp = append(temp, value)
+	}
+
+	// Encode the temporary slice to JSON and then decode it into the output slice
+	// This ensures proper type conversion
+	encoded, err := json.Marshal(temp)
+	if err != nil {
+		return errors.Wrap(err, "encode temporary slice")
+	}
+
+	if err := json.Unmarshal(encoded, out); err != nil {
+		return errors.Wrap(err, "decode to output slice")
+	}
+
+	return nil
+}
+
+// LLen returns the length of the list stored at key
+// If the key does not exist, it is interpreted as an empty list and 0 is returned
+//
+// Parameters:
+// - key: The key of the list
+//
+// Returns:
+// - int: The length of the list at key
+// - error: An error if the operation failed
+func (rc *RedisClient) LLen(key string) (int, error) {
+	reply, err := redis.Int(rc.Do("LLEN", key))
+	if err != nil {
+		return 0, errors.Wrap(err, "redis.LLEN")
+	}
+	return reply, nil
 }
