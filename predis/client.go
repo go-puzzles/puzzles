@@ -8,6 +8,8 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/pkg/errors"
+
+	redisDialer "github.com/go-puzzles/puzzles/dialer/redis"
 )
 
 var (
@@ -22,6 +24,11 @@ func NewRedisClient(pool *redis.Pool) *RedisClient {
 	return &RedisClient{
 		pool: pool,
 	}
+}
+
+func NewRedisClientWithAddr(addr string, db int, maxIdle int, password ...string) *RedisClient {
+	pool := redisDialer.DialRedisPool(addr, db, maxIdle, password...)
+	return NewRedisClient(pool)
 }
 
 func (rc *RedisClient) GetPool() *redis.Pool {
