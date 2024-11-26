@@ -24,6 +24,10 @@ func NewRedisClient(pool *redis.Pool) *RedisClient {
 	}
 }
 
+func (rc *RedisClient) GetPool() *redis.Pool {
+	return rc.pool
+}
+
 func (rc *RedisClient) GetConn() redis.Conn {
 	conn, _ := rc.GetConnWithContext(context.TODO())
 	return conn
