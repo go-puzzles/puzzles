@@ -11,18 +11,16 @@ package predis
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-puzzles/puzzles/dialer"
+	redisDialer "github.com/go-puzzles/puzzles/dialer/redis"
 	"github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClientCommandDo(t *testing.T) {
-	client := NewRedisClient(dialer.DialRedisPool("localhost:6379", 12, 100))
+	client := NewRedisClient(redisDialer.DialRedisPool("localhost:6379", 12, 100))
 
 	res, err := redis.String(client.Do("set", "test-key", 10))
 	assert.NoError(t, err)
@@ -40,7 +38,7 @@ func TestClientCommandDo(t *testing.T) {
 }
 
 func TestClientSet(t *testing.T) {
-	client := NewRedisClient(dialer.DialRedisPool("localhost:6379", 13, 100))
+	client := NewRedisClient(redisDialer.DialRedisPool("localhost:6379", 13, 100))
 
 	err := client.Set("test-key-set", "test-value")
 	assert.NoError(t, err)
@@ -84,34 +82,101 @@ func TestClientSet(t *testing.T) {
 }
 
 func TestClientLock(t *testing.T) {
-	client := NewRedisClient(dialer.DialRedisPool("localhost:6379", 12, 100))
+	client := setupTestRedis(t)
+	defer client.Close()
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	const lockKey = "test_lock"
+
+	// 清理可能存在的锁
+	client.UnLock(lockKey)
+
+	// 测试获取锁
+	err := client.Lock(lockKey)
+	assert.NoError(t, err, "首次获取锁应该成功")
+
+	// 启动一个 goroutine 尝试获取已被占用的锁
+	done := make(chan bool)
 	go func() {
-		defer wg.Done()
+		defer close(done)
 
-		time.Sleep(time.Second * 2)
-		if err := client.Lock("testLock"); err != nil {
-			t.Errorf("lock error: %v", err)
-			return
-		}
+		// 尝试获取已被占用的锁，应该失败
+		err := client.Lock(lockKey)
+		assert.Error(t, err, "获取已被占用的锁应该失败")
+		assert.Equal(t, ErrLockFailed, err, "应该返回 ErrLockFailed")
 
-		fmt.Println("after lockA")
-		time.Sleep(time.Second * 4)
-		client.UnLock("testLock")
+		// 使用 LockWithBlock 等待锁释放
+		err = client.LockWithBlock(lockKey, 3)
+		assert.NoError(t, err, "等待锁释放后应该成功获取锁")
+
+		// 释放锁
+		client.UnLock(lockKey)
 	}()
 
-	// time.Sleep(time.Second)
+	// 主 goroutine 等待一段时间后释放锁
+	time.Sleep(time.Second)
+	err = client.UnLock(lockKey)
+	assert.NoError(t, err, "释放锁应该成功")
 
-	if err := client.LockWithBlock("testLock", 10); err != nil {
-		t.Errorf("lock error: %v", err)
-		return
-	}
+	// 等待另一个 goroutine 完成
+	<-done
+}
 
-	fmt.Println("after lockB")
+func TestLockTimeout(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
 
-	wg.Wait()
+	const lockKey = "test_lock_timeout"
+
+	// 清理可能存在的锁
+	client.UnLock(lockKey)
+
+	// 设置一个短暂的过期时间
+	err := client.Lock(lockKey, time.Second)
+	assert.NoError(t, err, "获取锁应该成功")
+
+	// 立即尝试获取锁，应该失败
+	err = client.Lock(lockKey)
+	assert.Error(t, err, "锁被占用时应该获取失败")
+
+	// 等待锁过期
+	time.Sleep(time.Second * 2)
+
+	// 现在应该能够获取锁
+	err = client.Lock(lockKey)
+	assert.NoError(t, err, "锁过期后应该能够获取")
+
+	// 清理
+	client.UnLock(lockKey)
+}
+
+func TestLockWithBlockTimeout(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	const lockKey = "test_lock_block"
+
+	// 清理可能存在的锁
+	client.UnLock(lockKey)
+
+	// 首先获取锁
+	err := client.Lock(lockKey)
+	assert.NoError(t, err, "首次获取锁应该成功")
+
+	// 启动一个 goroutine 来测试 LockWithBlock
+	start := time.Now()
+	go func() {
+		time.Sleep(time.Second * 2)
+		client.UnLock(lockKey)
+	}()
+
+	// 尝试获取锁，设置较短的重试次数
+	err = client.LockWithBlock(lockKey, 5)
+	duration := time.Since(start)
+	assert.NoError(t, err, "应该成功获取锁")
+	assert.True(t, duration >= time.Second*2, "应该等待直到锁被释放")
+
+	// 清理
+	client.UnLock(lockKey)
 }
 
 func TestRedisClient_ListOperations(t *testing.T) {
@@ -246,4 +311,202 @@ func newTestPool() *redis.Pool {
 			return redis.Dial("tcp", "localhost:6379")
 		},
 	}
+}
+
+func setupTestRedis(t *testing.T) *RedisClient {
+	// 使用测试环境的Redis配置
+	client := NewRedisClientWithAddr("localhost:6379", 0, 10)
+	// 清空当前数据库
+	_, err := client.Do("FLUSHDB")
+	assert.NoError(t, err)
+	return client
+}
+
+func TestSetEXAndGet(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	key := "test_setex"
+	value := map[string]interface{}{
+		"name": "test",
+		"age":  25,
+	}
+
+	// 测试SetEX
+	err := client.SetEX(key, value, 1)
+	assert.NoError(t, err)
+
+	// 验证值
+	var result map[string]interface{}
+	err = client.Get(key, &result)
+	assert.NoError(t, err)
+
+	// 分别验证每个字段
+	assert.Equal(t, value["name"], result["name"])
+	assert.InDelta(t, value["age"].(int), result["age"].(float64), 0.0001)
+
+	// 等待过期
+	time.Sleep(time.Second * 2)
+	err = client.Get(key, &result)
+	assert.Error(t, err)
+}
+
+func TestSetNX(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	key := "test_setnx"
+	value := "test_value"
+
+	// 第一次设置应该成功
+	success, err := client.SetNX(key, value)
+	assert.NoError(t, err)
+	assert.True(t, success)
+
+	// 第二次设置应该失败
+	success, err = client.SetNX(key, "new_value")
+	assert.NoError(t, err)
+	assert.False(t, success)
+}
+
+func TestMSetAndMGet(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	values := map[string]interface{}{
+		"key1": "value1",
+		"key2": float64(123),
+		"key3": map[string]interface{}{"nested": "value"},
+	}
+
+	// 测试MSet
+	err := client.MSet(values)
+	assert.NoError(t, err)
+
+	// 测试MGet
+	result := make(map[string]interface{})
+	keys := []string{"key1", "key2", "key3", "nonexistent"}
+	err = client.MGet(keys, result)
+	assert.NoError(t, err)
+
+	// 验证结果
+	assert.Equal(t, values["key1"], result["key1"])
+	assert.Equal(t, values["key2"], result["key2"])
+	assert.Equal(t, values["key3"], result["key3"])
+	assert.Nil(t, result["nonexistent"])
+}
+
+func TestHashOperations(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	hashKey := "test_hash"
+
+	// 测试HSet和HGet
+	err := client.HSet(hashKey, "field1", "value1")
+	assert.NoError(t, err)
+
+	var result string
+	err = client.HGet(hashKey, "field1", &result)
+	assert.NoError(t, err)
+	assert.Equal(t, "value1", result)
+
+	// 测试HMSet和HMGet
+	fields := map[string]interface{}{
+		"field2": float64(123),
+		"field3": map[string]interface{}{"nested": "value"},
+	}
+	err = client.HMSet(hashKey, fields)
+	assert.NoError(t, err)
+
+	getFields := []string{"field2", "field3", "nonexistent"}
+	resultMap := make(map[string]interface{})
+	err = client.HMGet(hashKey, getFields, resultMap)
+	assert.NoError(t, err)
+	assert.Equal(t, fields["field2"], resultMap["field2"])
+	assert.Equal(t, fields["field3"], resultMap["field3"])
+	assert.Nil(t, resultMap["nonexistent"])
+
+	// 测试HExists
+	exists, err := client.HExists(hashKey, "field1")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = client.HExists(hashKey, "nonexistent")
+	assert.NoError(t, err)
+	assert.False(t, exists)
+
+	// 测试HDel
+	err = client.HDel(hashKey, "field1", "field2")
+	assert.NoError(t, err)
+
+	exists, err = client.HExists(hashKey, "field1")
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestSetOperations(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	setKey := "test_set"
+
+	// 测试SAdd
+	err := client.SAdd(setKey, "member1", 123, map[string]string{"nested": "value"})
+	assert.NoError(t, err)
+
+	// 测试SCard
+	count, err := client.SCard(setKey)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, count)
+
+	// 测试SIsMember
+	exists, err := client.SIsMember(setKey, "member1")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = client.SIsMember(setKey, "nonexistent")
+	assert.NoError(t, err)
+	assert.False(t, exists)
+
+	// 测试SMembers
+	var members []interface{}
+	err = client.SMembers(setKey, &members)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(members))
+
+	// 测试SRem
+	err = client.SRem(setKey, "member1")
+	assert.NoError(t, err)
+
+	count, err = client.SCard(setKey)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+}
+
+func TestRename(t *testing.T) {
+	client := setupTestRedis(t)
+	defer client.Close()
+
+	// 设置初始键值
+	oldKey := "old_key"
+	newKey := "new_key"
+	value := "test_value"
+
+	err := client.Set(oldKey, value)
+	assert.NoError(t, err)
+
+	// 测试Rename
+	err = client.Rename(oldKey, newKey)
+	assert.NoError(t, err)
+
+	// 验证旧键不存在
+	var result string
+	err = client.Get(oldKey, &result)
+	assert.Error(t, err)
+
+	// 验证新键存在且值正确
+	err = client.Get(newKey, &result)
+	assert.NoError(t, err)
+	assert.Equal(t, value, result)
 }

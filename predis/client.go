@@ -380,3 +380,240 @@ func (rc *RedisClient) LLen(key string) (int, error) {
 	}
 	return reply, nil
 }
+
+// SetEX 设置带过期时间的键值对
+func (rc *RedisClient) SetEX(key string, value any, seconds int) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errors.Wrap(err, "encode")
+	}
+
+	_, err = rc.Do("SETEX", key, seconds, data)
+	return errors.Wrap(err, "redis.SETEX")
+}
+
+// SetNX 仅当key不存在时设置值
+func (rc *RedisClient) SetNX(key string, value any) (bool, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return false, errors.Wrap(err, "encode")
+	}
+
+	reply, err := redis.Int(rc.Do("SETNX", key, data))
+	if err != nil {
+		return false, errors.Wrap(err, "redis.SETNX")
+	}
+	return reply == 1, nil
+}
+
+// MGet 批量获取多个key的值
+func (rc *RedisClient) MGet(keys []string, out map[string]any) error {
+	args := make([]any, len(keys))
+	for i, key := range keys {
+		args[i] = key
+	}
+
+	values, err := redis.ByteSlices(rc.Do("MGET", args...))
+	if err != nil {
+		return errors.Wrap(err, "redis.MGET")
+	}
+
+	for i, value := range values {
+		if value != nil {
+			var v any
+			if err := json.Unmarshal(value, &v); err != nil {
+				return errors.Wrap(err, "decode")
+			}
+			out[keys[i]] = v
+		}
+	}
+	return nil
+}
+
+// MSet 批量设置多个key-value
+func (rc *RedisClient) MSet(values map[string]any) error {
+	args := make([]any, 0, len(values)*2)
+	for k, v := range values {
+		data, err := json.Marshal(v)
+		if err != nil {
+			return errors.Wrap(err, "encode")
+		}
+		args = append(args, k, data)
+	}
+
+	_, err := rc.Do("MSET", args...)
+	return errors.Wrap(err, "redis.MSET")
+}
+
+// Rename 重命名key
+func (rc *RedisClient) Rename(oldKey, newKey string) error {
+	_, err := rc.Do("RENAME", oldKey, newKey)
+	return errors.Wrap(err, "redis.RENAME")
+}
+
+// HSet 设置hash字段的值
+func (rc *RedisClient) HSet(key, field string, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errors.Wrap(err, "encode")
+	}
+
+	_, err = rc.Do("HSET", key, field, data)
+	return errors.Wrap(err, "redis.HSET")
+}
+
+// HGet 获取hash字段的值
+func (rc *RedisClient) HGet(key, field string, out any) error {
+	data, err := redis.Bytes(rc.Do("HGET", key, field))
+	if err == redis.ErrNil {
+		return errors.New("field not found")
+	}
+	if err != nil {
+		return errors.Wrap(err, "redis.HGET")
+	}
+
+	if err := json.Unmarshal(data, out); err != nil {
+		return errors.Wrap(err, "decode")
+	}
+	return nil
+}
+
+// HMSet 批量设置hash字段
+func (rc *RedisClient) HMSet(key string, fields map[string]any) error {
+	args := make([]any, 0, 1+len(fields)*2)
+	args = append(args, key)
+
+	for field, value := range fields {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return errors.Wrap(err, "encode")
+		}
+		args = append(args, field, data)
+	}
+
+	_, err := rc.Do("HMSET", args...)
+	return errors.Wrap(err, "redis.HMSET")
+}
+
+// HMGet 批量获取hash字段
+func (rc *RedisClient) HMGet(key string, fields []string, out map[string]any) error {
+	args := make([]any, 0, 1+len(fields))
+	args = append(args, key)
+	for _, field := range fields {
+		args = append(args, field)
+	}
+
+	values, err := redis.ByteSlices(rc.Do("HMGET", args...))
+	if err != nil {
+		return errors.Wrap(err, "redis.HMGET")
+	}
+
+	for i, value := range values {
+		if value != nil {
+			var v any
+			if err := json.Unmarshal(value, &v); err != nil {
+				return errors.Wrap(err, "decode")
+			}
+			out[fields[i]] = v
+		}
+	}
+	return nil
+}
+
+// HDel 删除hash字段
+func (rc *RedisClient) HDel(key string, fields ...string) error {
+	args := make([]any, 0, 1+len(fields))
+	args = append(args, key)
+	for _, field := range fields {
+		args = append(args, field)
+	}
+
+	_, err := rc.Do("HDEL", args...)
+	return errors.Wrap(err, "redis.HDEL")
+}
+
+// HExists 检查hash字段是否存在
+func (rc *RedisClient) HExists(key, field string) (bool, error) {
+	exists, err := redis.Bool(rc.Do("HEXISTS", key, field))
+	if err != nil {
+		return false, errors.Wrap(err, "redis.HEXISTS")
+	}
+	return exists, nil
+}
+
+// SAdd 向集合添加成员
+func (rc *RedisClient) SAdd(key string, members ...any) error {
+	args := make([]any, 0, 1+len(members))
+	args = append(args, key)
+
+	for _, member := range members {
+		data, err := json.Marshal(member)
+		if err != nil {
+			return errors.Wrap(err, "encode")
+		}
+		args = append(args, data)
+	}
+
+	_, err := rc.Do("SADD", args...)
+	return errors.Wrap(err, "redis.SADD")
+}
+
+// SMembers 获取集合所有成员
+func (rc *RedisClient) SMembers(key string, out any) error {
+	reply, err := redis.ByteSlices(rc.Do("SMEMBERS", key))
+	if err != nil {
+		return errors.Wrap(err, "redis.SMEMBERS")
+	}
+
+	var temp []any
+	for _, item := range reply {
+		var value any
+		if err := json.Unmarshal(item, &value); err != nil {
+			return errors.Wrap(err, "decode")
+		}
+		temp = append(temp, value)
+	}
+
+	encoded, err := json.Marshal(temp)
+	if err != nil {
+		return errors.Wrap(err, "encode temporary slice")
+	}
+
+	if err := json.Unmarshal(encoded, out); err != nil {
+		return errors.Wrap(err, "decode to output slice")
+	}
+
+	return nil
+}
+
+// SIsMember 判断元素是否是集合成员
+func (rc *RedisClient) SIsMember(key string, member any) (bool, error) {
+	data, err := json.Marshal(member)
+	if err != nil {
+		return false, errors.Wrap(err, "encode")
+	}
+
+	return redis.Bool(rc.Do("SISMEMBER", key, data))
+}
+
+// SRem 移除集合成员
+func (rc *RedisClient) SRem(key string, members ...any) error {
+	args := make([]any, 0, 1+len(members))
+	args = append(args, key)
+
+	for _, member := range members {
+		data, err := json.Marshal(member)
+		if err != nil {
+			return errors.Wrap(err, "encode")
+		}
+		args = append(args, data)
+	}
+
+	_, err := rc.Do("SREM", args...)
+	return errors.Wrap(err, "redis.SREM")
+}
+
+// SCard 获取集合成员数量
+func (rc *RedisClient) SCard(key string) (int, error) {
+	return redis.Int(rc.Do("SCARD", key))
+}
