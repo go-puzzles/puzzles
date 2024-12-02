@@ -2,8 +2,12 @@ package predis
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -17,7 +21,8 @@ var (
 )
 
 type RedisClient struct {
-	pool *redis.Pool
+	pool       *redis.Pool
+	lockValues sync.Map
 }
 
 func NewRedisClient(pool *redis.Pool) *RedisClient {
@@ -98,15 +103,21 @@ func (rc *RedisClient) TransactionPipeline(conn redis.Conn, watchKey []string, c
 }
 
 func (rc *RedisClient) SetWithTTL(key string, value any, ttl time.Duration) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return errors.Wrap(err, "encode")
+	var err error
+	switch value.(type) {
+	case string, int, int64, float32, float64, bool, []byte:
+	default:
+		jsonBytes, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("json marshal failed: %w", err)
+		}
+		value = jsonBytes
 	}
 
 	if ttl > 0 {
-		_, err = rc.Do("SET", key, data, "EX", int(ttl.Seconds()))
+		_, err = rc.Do("SET", key, value, "EX", int(ttl.Seconds()))
 	} else {
-		_, err = rc.Do("SET", key, data)
+		_, err = rc.Do("SET", key, value)
 	}
 
 	return errors.Wrap(err, "redis.Set")
@@ -117,16 +128,40 @@ func (rc *RedisClient) Set(key string, value any) error {
 }
 
 func (rc *RedisClient) Get(key string, out any) error {
-	data, err := redis.Bytes(rc.Do("GET", key))
+	reply, err := rc.Do("GET", key)
 	if err != nil {
 		return errors.Wrap(err, "redis.GET")
 	}
-
-	if err := json.Unmarshal(data, &out); err != nil {
-		return errors.Wrap(err, "decode")
+	switch ptr := out.(type) {
+	case *string:
+		*ptr, err = redis.String(reply, nil)
+	case *[]byte:
+		*ptr, err = redis.Bytes(reply, nil)
+	case *int:
+		*ptr, err = redis.Int(reply, nil)
+	case *int64:
+		*ptr, err = redis.Int64(reply, nil)
+	case *float32:
+		f64, err := redis.Float64(reply, nil)
+		if err == nil {
+			*ptr = float32(f64)
+		}
+	case *float64:
+		*ptr, err = redis.Float64(reply, nil)
+	case *bool:
+		*ptr, err = redis.Bool(reply, nil)
+	case *time.Time:
+		return errors.New("unsupported type: time.Time")
+	default:
+		var b []byte
+		b, err = redis.Bytes(reply, nil)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(b, out)
 	}
 
-	return nil
+	return err
 }
 
 func (rc *RedisClient) Delete(key string) error {
@@ -154,13 +189,15 @@ func (rc *RedisClient) Delete(key string) error {
 // Returns:
 //   - An error if the lock could not be acquired after maxRetry attempts,
 //     or if another error occurred during the lock acquisition process.
-func (rc *RedisClient) LockWithBlock(key string, maxRetry int, expires ...time.Duration) (err error) {
+func (rc *RedisClient) LockWithBlock(key string, maxRetry int, expires ...time.Duration) error {
+	var lastErr error
 	for i := 0; i < maxRetry; i++ {
-		err = rc.Lock(key, expires...)
+		err := rc.Lock(key, expires...)
 		if err == nil {
 			return nil
 		}
 
+		lastErr = err
 		if errors.Is(err, ErrLockFailed) {
 			time.Sleep(time.Millisecond * 500)
 			continue
@@ -169,7 +206,7 @@ func (rc *RedisClient) LockWithBlock(key string, maxRetry int, expires ...time.D
 		return err
 	}
 
-	return ErrLockFailed
+	return lastErr
 }
 
 // Lock attempts to acquire a lock with the given key in Redis.
@@ -189,30 +226,54 @@ func (rc *RedisClient) LockWithBlock(key string, maxRetry int, expires ...time.D
 //
 // Returns:
 // - An error, if the lock could not be acquired or another error occurred.
-func (rc *RedisClient) Lock(key string, expires ...time.Duration) (err error) {
+func (rc *RedisClient) Lock(key string, expires ...time.Duration) error {
 	expire := defaultTTL
 	if len(expires) != 0 {
 		expire = expires[0]
 	}
 
-	_, err = redis.String(rc.Do("SET", key, time.Now().Unix(), "EX", int(expire.Seconds()), "NX"))
-	if err == redis.ErrNil {
+	value := randomValue()
+
+	reply, err := rc.Do("SET", key, value, "NX", "PX", int(expire.Milliseconds()))
+	if err != nil {
+		return err
+	}
+	if reply == nil {
 		return ErrLockFailed
 	}
 
+	rc.lockValues.Store(key, value)
+	return nil
+}
+
+func (rc *RedisClient) UnLock(key string) error {
+	value, ok := rc.lockValues.Load(key)
+	if !ok {
+		return ErrLockNotHeld
+	}
+
+	script := `
+		if redis.call("get", KEYS[1]) == ARGV[1] then
+			return redis.call("del", KEYS[1])
+		else
+			return 0
+		end
+	`
+
+	conn := rc.GetConn()
+	defer conn.Close()
+
+	reply, err := redis.Int(conn.Do("EVAL", script, 1, key, value))
 	if err != nil {
 		return err
 	}
 
+	rc.lockValues.Delete(key)
+
+	if reply == 0 {
+		return ErrLockNotHeld
+	}
 	return nil
-}
-
-func (rc *RedisClient) UnLock(key string) (err error) {
-	return rc.Delete(key)
-}
-
-func (rc *RedisClient) Close() error {
-	return rc.pool.Close()
 }
 
 // LPush pushes one or more values to the head of the list stored at key
@@ -616,4 +677,14 @@ func (rc *RedisClient) SRem(key string, members ...any) error {
 // SCard 获取集合成员数量
 func (rc *RedisClient) SCard(key string) (int, error) {
 	return redis.Int(rc.Do("SCARD", key))
+}
+
+func randomValue() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func (rc *RedisClient) Close() error {
+	return rc.pool.Close()
 }
