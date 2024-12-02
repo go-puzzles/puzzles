@@ -9,10 +9,11 @@
 package pqueue
 
 import (
+	"context"
 	"encoding/json"
+	"time"
 
-	"github.com/go-puzzles/puzzles/predis"
-	"github.com/gomodule/redigo/redis"
+	"github.com/go-puzzles/puzzles/goredis"
 	"github.com/pkg/errors"
 )
 
@@ -29,16 +30,17 @@ type Item interface {
 }
 
 type RedisQueue[T Item] struct {
-	client *predis.RedisClient
+	client *goredis.PuzzleRedisClient
 	queue  string
+	ctx    context.Context
 }
 
-func NewRedisQueue[T Item](pool *redis.Pool, queue string) *RedisQueue[T] {
-	return &RedisQueue[T]{client: predis.NewRedisClient(pool), queue: queue}
-}
-
-func (q *RedisQueue[T]) Do(command string, args ...any) (reply any, err error) {
-	return q.client.Do(command, args...)
+func NewRedisQueue[T Item](addr string, db int, queue string) *RedisQueue[T] {
+	return &RedisQueue[T]{
+		client: goredis.NewRedisClient(addr, db),
+		queue:  queue,
+		ctx:    context.Background(),
+	}
 }
 
 func (q *RedisQueue[T]) Enqueue(item T) error {
@@ -47,15 +49,13 @@ func (q *RedisQueue[T]) Enqueue(item T) error {
 		return err
 	}
 
-	_, err = q.Do("RPUSH", q.queue, serializedValue)
-	return err
-
+	return q.client.RPush(q.ctx, q.queue, serializedValue).Err()
 }
 
-func (q *RedisQueue[T]) parseQueueData(bulk []any) (T, error) {
+func (q *RedisQueue[T]) parseQueueData(data string) (T, error) {
 	var ret T
 	var zero T
-	if err := json.Unmarshal(bulk[1].([]byte), &ret); err != nil {
+	if err := json.Unmarshal([]byte(data), &ret); err != nil {
 		return zero, errors.Wrap(err, "redisDequeueDecode")
 	}
 
@@ -65,15 +65,21 @@ func (q *RedisQueue[T]) parseQueueData(bulk []any) (T, error) {
 func (q *RedisQueue[T]) Dequeue() (T, error) {
 	var zero T
 
-	bulks, err := redis.Values(q.Do("BLPOP", q.queue, 5))
+	// 使用BLPop阻塞获取数据，超时时间5秒
+	result, err := q.client.BLPop(q.ctx, 5*time.Second, q.queue).Result()
 	if err != nil {
-		if errors.Is(err, redis.ErrNil) {
+		if err.Error() == "redis: nil" {
 			return zero, QueueEmptyError
 		}
 		return zero, err
 	}
 
-	return q.parseQueueData(bulks)
+	// BLPop返回一个字符串切片，第一个元素是键名，第二个元素是值
+	if len(result) != 2 {
+		return zero, errors.New("invalid redis response")
+	}
+
+	return q.parseQueueData(result[1])
 }
 
 func (q *RedisQueue[T]) IsEmpty() (bool, error) {
@@ -86,12 +92,12 @@ func (q *RedisQueue[T]) IsEmpty() (bool, error) {
 }
 
 func (q *RedisQueue[T]) size() (int, error) {
-	length, err := redis.Int(q.Do("LLEN", q.queue))
+	length, err := q.client.LLen(q.ctx, q.queue).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	return length, nil
+	return int(length), nil
 }
 
 func (q *RedisQueue[T]) Size() (int, error) {
