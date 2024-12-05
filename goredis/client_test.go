@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -263,6 +264,23 @@ type TestStruct struct {
 	Age     int      `json:"age"`
 	Tags    []string `json:"tags"`
 	IsAdmin bool     `json:"is_admin"`
+}
+
+type ListTestItem struct {
+	ID   int      `json:"id"`
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
+}
+
+type UserProfile struct {
+	UserID      int64                  `json:"user_id"`
+	Username    string                 `json:"username"`
+	Email       string                 `json:"email"`
+	Age         int                    `json:"age"`
+	IsActive    bool                   `json:"is_active"`
+	Roles       []string               `json:"roles"`
+	Preferences map[string]interface{} `json:"preferences"`
+	CreatedAt   time.Time              `json:"created_at"`
 }
 
 func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
@@ -551,17 +569,295 @@ func TestPuzzleRedisClient_SetGetValue_Mixed(t *testing.T) {
 			t.Errorf("GetValue() got = %v, want %v", got, string(value))
 		}
 	})
+
+	t.Run("binary data handling", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			value    interface{}
+			wantType string
+		}{
+			{
+				name:     "binary data with null bytes",
+				value:    []byte{0x00, 0x01, 0x02, 0x03},
+				wantType: "binary",
+			},
+			{
+				name:     "text as bytes",
+				value:    []byte("Hello, World!"),
+				wantType: "binary",
+			},
+			{
+				name:     "plain string",
+				value:    "Hello, World!",
+				wantType: "string",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				key := "test_binary_" + tt.name
+
+				// Set the value
+				err := client.SetValue(ctx, key, tt.value, time.Minute)
+				assert.NoError(t, err)
+
+				// Get the raw value from Redis to check the format
+				raw, err := client.Get(ctx, key).Result()
+				assert.NoError(t, err)
+
+				// Verify the storage format
+				if tt.wantType == "binary" {
+					assert.True(t, strings.HasPrefix(raw, "bytes:"),
+						"Binary data should be stored with 'bytes:' prefix")
+				} else {
+					assert.False(t, strings.HasPrefix(raw, "bytes:"),
+						"Non-binary data should not have 'bytes:' prefix")
+				}
+
+				// Test retrieving as []byte
+				var bytesResult []byte
+				err = client.GetValue(ctx, key, &bytesResult)
+				assert.NoError(t, err)
+
+				// Test retrieving as string
+				var strResult string
+				err = client.GetValue(ctx, key, &strResult)
+				assert.NoError(t, err)
+
+				// Verify the results
+				switch v := tt.value.(type) {
+				case []byte:
+					assert.Equal(t, v, bytesResult)
+					assert.Equal(t, string(v), strResult)
+				case string:
+					assert.Equal(t, []byte(v), bytesResult)
+					assert.Equal(t, v, strResult)
+				}
+
+				// Clean up
+				client.Del(ctx, key)
+			})
+		}
+	})
 }
 
 func setupTestClient(t *testing.T) *PuzzleRedisClient {
-	// 使用测试环境的Redis配置
+	// Use Redis configuration for testing environment
 	client := NewRedisClient("localhost:6379", 0)
 
-	// 确保Redis连接正常
+	// Ensure Redis connection is working
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
 	return client
+}
+
+func TestPuzzleRedisClient_ListOperations(t *testing.T) {
+	client := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("basic list operations", func(t *testing.T) {
+		key := "test:list:basic"
+		// Clean up test key
+		client.Del(ctx, key)
+
+		// Test LPush
+		err := client.LPushValue(ctx, key, "value1", "value2", "value3")
+		assert.NoError(t, err)
+
+		// Test RPush
+		err = client.RPushValue(ctx, key, "value4", "value5")
+		assert.NoError(t, err)
+
+		// Verify list length
+		length, err := client.LLen(ctx, key).Result()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(5), length)
+
+		// Test LPop
+		var leftValue string
+		err = client.LPopValue(ctx, key, &leftValue)
+		assert.NoError(t, err)
+		assert.Equal(t, "value3", leftValue)
+
+		// Test RPop
+		var rightValue string
+		err = client.RPopValue(ctx, key, &rightValue)
+		assert.NoError(t, err)
+		assert.Equal(t, "value5", rightValue)
+
+		// Clean up
+		client.Del(ctx, key)
+	})
+
+	t.Run("complex type list operations", func(t *testing.T) {
+		key := "test:list:complex"
+		client.Del(ctx, key)
+
+		items := []ListTestItem{
+			{ID: 1, Name: "Item 1", Tags: []string{"tag1", "tag2"}},
+			{ID: 2, Name: "Item 2", Tags: []string{"tag2", "tag3"}},
+			{ID: 3, Name: "Item 3", Tags: []string{"tag3", "tag4"}},
+		}
+
+		// Test LPush with complex type
+		for _, item := range items {
+			err := client.LPushValue(ctx, key, item)
+			assert.NoError(t, err)
+		}
+
+		// Test LPop with complex type
+		var result ListTestItem
+		err := client.LPopValue(ctx, key, &result)
+		assert.NoError(t, err)
+		assert.Equal(t, items[len(items)-1], result)
+
+		// Clean up
+		client.Del(ctx, key)
+	})
+
+	t.Run("range operations", func(t *testing.T) {
+		key := "test:list:range"
+		client.Del(ctx, key)
+
+		// Prepare test data
+		values := []string{"value1", "value2", "value3", "value4", "value5"}
+		for _, v := range values {
+			err := client.RPushValue(ctx, key, v)
+			assert.NoError(t, err)
+		}
+
+		// Test Range
+		var rangeResult []string
+		err := client.RangeValue(ctx, key, 1, 3, &rangeResult)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"value2", "value3", "value4"}, rangeResult)
+
+		// Test RRange
+		var rrangeResult []string
+		err = client.RRangeValue(ctx, key, 0, 2, &rrangeResult)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"value3", "value4", "value5"}, rrangeResult)
+
+		// Clean up
+		client.Del(ctx, key)
+	})
+
+	t.Run("mixed type list operations", func(t *testing.T) {
+		key := "test:list:mixed"
+		client.Del(ctx, key)
+
+		// Create test UserProfile
+		userProfile := UserProfile{
+			UserID:   12345,
+			Username: "test_user",
+			Email:    "test@example.com",
+			Age:      25,
+			IsActive: true,
+			Roles:    []string{"admin", "user"},
+			Preferences: map[string]interface{}{
+				"theme":         "dark",
+				"language":      "en",
+				"notifications": true,
+			},
+			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		}
+
+		// Note: Since it's LIFO, we need to push in reverse order of desired pop order
+		// Test different types of values
+		err := client.RPushValue(ctx, key, // Use RPush to maintain order
+			42,                     // int
+			3.14,                   // float64
+			true,                   // bool
+			"string value",         // string
+			map[string]int{"a": 1}, // complex type
+			userProfile,            // struct
+			[]byte("byte array"),   // []byte - placed at the end
+		)
+		assert.NoError(t, err)
+
+		// Test popping and converting to correct types
+		// Pop in the order of pushing (using LPop)
+
+		// Test int
+		var intValue int
+		err = client.LPopValue(ctx, key, &intValue)
+		assert.NoError(t, err)
+		assert.Equal(t, 42, intValue)
+
+		// Test float64
+		var floatValue float64
+		err = client.LPopValue(ctx, key, &floatValue)
+		assert.NoError(t, err)
+		assert.Equal(t, 3.14, floatValue)
+
+		// Test bool
+		var boolValue bool
+		err = client.LPopValue(ctx, key, &boolValue)
+		assert.NoError(t, err)
+		assert.Equal(t, true, boolValue)
+
+		// Test string
+		var strValue string
+		err = client.LPopValue(ctx, key, &strValue)
+		assert.NoError(t, err)
+		assert.Equal(t, "string value", strValue)
+
+		// Test map
+		var mapValue map[string]int
+		err = client.LPopValue(ctx, key, &mapValue)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"a": 1}, mapValue)
+
+		// Test UserProfile struct
+		var profileResult UserProfile
+		err = client.LPopValue(ctx, key, &profileResult)
+		assert.NoError(t, err)
+		assert.Equal(t, userProfile, profileResult)
+
+		// Test []byte
+		var bytesValue []byte
+		err = client.LPopValue(ctx, key, &bytesValue)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("byte array"), bytesValue)
+
+		// Verify list is empty
+		length, err := client.LLen(ctx, key).Result()
+		assert.NoError(t, err)
+		assert.Equal(t, int64(0), length)
+
+		// Clean up
+		client.Del(ctx, key)
+	})
+
+	t.Run("error cases", func(t *testing.T) {
+		key := "test:list:errors"
+		client.Del(ctx, key)
+
+		// Test popping from empty list
+		var result string
+		err := client.LPopValue(ctx, key, &result)
+		assert.Error(t, err)
+		assert.Equal(t, redis.Nil, err)
+
+		// Test Range parameter validation
+		var invalidPtr *string
+		err = client.RangeValue(ctx, key, 0, 1, invalidPtr)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "result must be a slice")
+
+		// Test type conversion error
+		err = client.LPushValue(ctx, key, "not a number")
+		assert.NoError(t, err)
+
+		var intResult int
+		err = client.LPopValue(ctx, key, &intResult)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `strconv.Atoi: parsing "not a number": invalid syntax`)
+
+		// Clean up
+		client.Del(ctx, key)
+	})
 }

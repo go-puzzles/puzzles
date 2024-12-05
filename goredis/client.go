@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -124,17 +125,13 @@ func (c *PuzzleRedisClient) getInstanceID() string {
 }
 
 // SetValue stores any type of value in Redis with automatic type handling
-func (c *PuzzleRedisClient) SetValue(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	switch v := value.(type) {
-	case string, int, int64, float32, float64, bool, []byte:
-		return c.Client.Set(ctx, key, v, expiration).Err()
-	default:
-		jsonBytes, err := json.Marshal(value)
-		if err != nil {
-			return fmt.Errorf("json marshal failed: %w", err)
-		}
-		return c.Client.Set(ctx, key, jsonBytes, expiration).Err()
+func (c *PuzzleRedisClient) SetValue(ctx context.Context, key string, value any, expiration time.Duration) error {
+	redisValue, err := c.convertValueToRedisArg(value)
+	if err != nil {
+		return fmt.Errorf("failed to convert value to redis arg: %w", err)
 	}
+
+	return c.Client.Set(ctx, key, redisValue, expiration).Err()
 }
 
 // GetValue retrieves a value from Redis with automatic type conversion
@@ -149,11 +146,119 @@ func (c *PuzzleRedisClient) SetValue(ctx context.Context, key string, value inte
 // - bool
 // - time.Time
 // For other types, JSON deserialization will be performed
-func (c *PuzzleRedisClient) GetValue(ctx context.Context, key string, result interface{}) error {
-	cmd := c.Client.Get(ctx, key)
+func (c *PuzzleRedisClient) GetValue(ctx context.Context, key string, result any) error {
+	rt := reflect.TypeOf(result)
+	if rt.Kind() != reflect.Ptr {
+		return fmt.Errorf("result must be a pointer")
+	}
 
-	var err error
+	cmd := c.Client.Get(ctx, key)
+	if cmd.Err() != nil {
+		return cmd.Err()
+	}
+
+	return c.convertRedisValueToType(cmd, result)
+}
+
+func (c *PuzzleRedisClient) LPushValue(ctx context.Context, key string, values ...any) error {
+	args := make([]any, len(values))
+	for i, value := range values {
+		arg, err := c.convertValueToRedisArg(value)
+		if err != nil {
+			return fmt.Errorf("failed to convert item %d: %w", i, err)
+		}
+		args[i] = arg
+	}
+	return c.LPush(ctx, key, args...).Err()
+}
+
+func (c *PuzzleRedisClient) LPopValue(ctx context.Context, key string, result any) error {
+	rt := reflect.TypeOf(result)
+	if rt.Kind() != reflect.Ptr {
+		return fmt.Errorf("result must be a pointer")
+	}
+
+	cmd := c.LPop(ctx, key)
+	if cmd.Err() != nil {
+		return cmd.Err()
+	}
+
+	return c.convertRedisValueToType(cmd, result)
+}
+
+func (c *PuzzleRedisClient) RPushValue(ctx context.Context, key string, values ...any) error {
+	args := make([]any, len(values))
+	for i, value := range values {
+		arg, err := c.convertValueToRedisArg(value)
+		if err != nil {
+			return fmt.Errorf("failed to convert item %d: %w", i, err)
+		}
+		args[i] = arg
+	}
+	return c.RPush(ctx, key, args...).Err()
+}
+
+func (c *PuzzleRedisClient) RPopValue(ctx context.Context, key string, result any) error {
+	rt := reflect.TypeOf(result)
+	if rt.Kind() != reflect.Ptr {
+		return fmt.Errorf("result must be a pointer")
+	}
+
+	cmd := c.RPop(ctx, key)
+	if cmd.Err() != nil {
+		return cmd.Err()
+	}
+
+	return c.convertRedisValueToType(cmd, result)
+}
+
+// RangeValue retrieves a range of values from the list and converts them to the specified slice type
+// start and stop are inclusive indices
+// For example: 0, 10 means get the first 11 elements
+// -1 represents the last element, -2 represents the second to last element, and so on
+func (c *PuzzleRedisClient) RangeValue(ctx context.Context, key string, start, stop int64, resultPtr any) error {
+	resultValue := reflect.ValueOf(resultPtr)
+	if !resultValue.IsValid() {
+		return fmt.Errorf("result must not be nil")
+	}
+
+	if resultValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("result must be a pointer")
+	}
+
+	resultValue = resultValue.Elem()
+	if resultValue.Kind() != reflect.Slice {
+		return fmt.Errorf("result must be a slice")
+	}
+
+	cmd := c.LRange(ctx, key, start, stop)
+	if cmd.Err() != nil {
+		return cmd.Err()
+	}
+	return scanRedisSlice(cmd.Val(), resultValue)
+}
+
+// RRangeValue retrieves a range of values from the list starting from the right and converts them to the specified slice type
+// start and stop are inclusive indices counted from the right
+// For example: 0, 10 means get the first 11 elements from the right
+// Note: start and stop are counted from the right, where 0 represents the rightmost element
+func (c *PuzzleRedisClient) RRangeValue(ctx context.Context, key string, start, stop int64, resultPtr any) error {
+	length, err := c.LLen(ctx, key).Result()
+	if err != nil {
+		return fmt.Errorf("failed to get list length: %w", err)
+	}
+
+	leftStart := length - stop - 1
+	leftStop := length - start - 1
+
+	return c.RangeValue(ctx, key, leftStart, leftStop, resultPtr)
+}
+
+// convertRedisValueToType converts a Redis string value to the specified type
+func (c *PuzzleRedisClient) convertRedisValueToType(cmd *redis.StringCmd, result any) (err error) {
 	switch ptr := result.(type) {
+	case nil:
+		return fmt.Errorf("result is nil")
 	case *string:
 		*ptr, err = cmd.Result()
 	case *[]byte:
@@ -178,6 +283,19 @@ func (c *PuzzleRedisClient) GetValue(ctx context.Context, key string, result int
 		}
 		err = json.Unmarshal(b, result)
 	}
+	return
+}
 
-	return err
+// convertValueToRedisArg converts a value to a format suitable for Redis storage
+func (c *PuzzleRedisClient) convertValueToRedisArg(value any) (any, error) {
+	switch v := value.(type) {
+	case string, int, int64, float32, float64, bool, []byte:
+		return v, nil
+	default:
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("json marshal failed: %w", err)
+		}
+		return string(jsonBytes), nil
+	}
 }

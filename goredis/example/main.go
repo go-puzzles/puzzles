@@ -10,8 +10,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/go-puzzles/puzzles/predis"
+	"github.com/go-puzzles/puzzles/goredis"
 )
 
 type Person struct {
@@ -20,19 +21,17 @@ type Person struct {
 }
 
 func main() {
-	client := predis.NewRedisClient("localhost:6379", 1)
-	err := client.SetValue(context.Background(), "test-person", &Person{"Hoven", 16}, 0)
+	client := goredis.NewRedisClient("localhost:6379", 0)
+	err := client.LPushValue(context.Background(), "test-push", "this is a string")
 	if err != nil {
 		panic(err)
 	}
 
-	err = client.SetValue(context.Background(), "test-str", "hoven", 0)
+	var intRet int
+	err = client.LPopValue(context.Background(), "test-push", &intRet)
 	if err != nil {
 		panic(err)
 	}
 
-	err = client.SetValue(context.Background(), "test-int", 18, 0)
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println(intRet)
 }
