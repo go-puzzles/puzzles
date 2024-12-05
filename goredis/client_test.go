@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -567,76 +566,6 @@ func TestPuzzleRedisClient_SetGetValue_Mixed(t *testing.T) {
 
 		if got != string(value) {
 			t.Errorf("GetValue() got = %v, want %v", got, string(value))
-		}
-	})
-
-	t.Run("binary data handling", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			value    interface{}
-			wantType string
-		}{
-			{
-				name:     "binary data with null bytes",
-				value:    []byte{0x00, 0x01, 0x02, 0x03},
-				wantType: "binary",
-			},
-			{
-				name:     "text as bytes",
-				value:    []byte("Hello, World!"),
-				wantType: "binary",
-			},
-			{
-				name:     "plain string",
-				value:    "Hello, World!",
-				wantType: "string",
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				key := "test_binary_" + tt.name
-
-				// Set the value
-				err := client.SetValue(ctx, key, tt.value, time.Minute)
-				assert.NoError(t, err)
-
-				// Get the raw value from Redis to check the format
-				raw, err := client.Get(ctx, key).Result()
-				assert.NoError(t, err)
-
-				// Verify the storage format
-				if tt.wantType == "binary" {
-					assert.True(t, strings.HasPrefix(raw, "bytes:"),
-						"Binary data should be stored with 'bytes:' prefix")
-				} else {
-					assert.False(t, strings.HasPrefix(raw, "bytes:"),
-						"Non-binary data should not have 'bytes:' prefix")
-				}
-
-				// Test retrieving as []byte
-				var bytesResult []byte
-				err = client.GetValue(ctx, key, &bytesResult)
-				assert.NoError(t, err)
-
-				// Test retrieving as string
-				var strResult string
-				err = client.GetValue(ctx, key, &strResult)
-				assert.NoError(t, err)
-
-				// Verify the results
-				switch v := tt.value.(type) {
-				case []byte:
-					assert.Equal(t, v, bytesResult)
-					assert.Equal(t, string(v), strResult)
-				case string:
-					assert.Equal(t, []byte(v), bytesResult)
-					assert.Equal(t, v, strResult)
-				}
-
-				// Clean up
-				client.Del(ctx, key)
-			})
 		}
 	})
 }

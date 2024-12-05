@@ -256,34 +256,7 @@ func (c *PuzzleRedisClient) RRangeValue(ctx context.Context, key string, start, 
 
 // convertRedisValueToType converts a Redis string value to the specified type
 func (c *PuzzleRedisClient) convertRedisValueToType(cmd *redis.StringCmd, result any) (err error) {
-	switch ptr := result.(type) {
-	case nil:
-		return fmt.Errorf("result is nil")
-	case *string:
-		*ptr, err = cmd.Result()
-	case *[]byte:
-		*ptr, err = cmd.Bytes()
-	case *int:
-		*ptr, err = cmd.Int()
-	case *int64:
-		*ptr, err = cmd.Int64()
-	case *float32:
-		*ptr, err = cmd.Float32()
-	case *float64:
-		*ptr, err = cmd.Float64()
-	case *bool:
-		*ptr, err = cmd.Bool()
-	case *time.Time:
-		*ptr, err = cmd.Time()
-	default:
-		var b []byte
-		b, err = cmd.Bytes()
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal(b, result)
-	}
-	return
+	return scan([]byte(cmd.Val()), result)
 }
 
 // convertValueToRedisArg converts a value to a format suitable for Redis storage

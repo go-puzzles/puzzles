@@ -68,7 +68,7 @@ func scanRedisSlice(data []string, v reflect.Value) error {
 func scan(b []byte, v any) (err error) {
 	switch v := v.(type) {
 	case nil:
-		return fmt.Errorf("redis: Scan(nil)")
+		return fmt.Errorf("goredis: Scan(nil)")
 	case *string:
 		*v = convert.BytesToString(b)
 		return nil
@@ -147,16 +147,25 @@ func scan(b []byte, v any) (err error) {
 			return err
 		}
 		*v = float32(n)
-		return err
+		return nil
 	case *float64:
 		*v, err = convert.ParseFloat(b, 64)
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	case *bool:
-		*v = len(b) == 1 && b[0] == '1'
+		*v, err = convert.ParseBool(b)
+		if err != nil {
+			return err
+		}
 		return nil
 	case *time.Time:
 		*v, err = time.Parse(time.RFC3339Nano, convert.BytesToString(b))
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	case *time.Duration:
 		n, err := convert.ParseInt(b, 10, 64)
 		if err != nil {
@@ -170,7 +179,6 @@ func scan(b []byte, v any) (err error) {
 		*v = b
 		return nil
 	default:
-		err = json.Unmarshal(b, v)
+		return json.Unmarshal(b, v)
 	}
-	return nil
 }
