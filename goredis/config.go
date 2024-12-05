@@ -7,7 +7,7 @@ type RedisConf struct {
 	Password string `desc:"redis server password"`
 }
 
-func (conf *RedisConf) DialRedisPool() *PuzzleRedisClient {
+func (conf *RedisConf) DialRedisClient() *PuzzleRedisClient {
 	return NewRedisClientWithAuth(conf.Server, conf.Db, conf.Username, conf.Password)
 }
 
