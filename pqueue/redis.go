@@ -43,6 +43,14 @@ func NewRedisQueue[T Item](addr string, db int, queue string) *RedisQueue[T] {
 	}
 }
 
+func NewRedisQueueWithClient[T Item](client *goredis.PuzzleRedisClient, queue string) *RedisQueue[T] {
+	return &RedisQueue[T]{
+		client: client,
+		queue:  queue,
+		ctx:    context.Background(),
+	}
+}
+
 func (q *RedisQueue[T]) Enqueue(item T) error {
 	serializedValue, err := json.Marshal(item)
 	if err != nil {
