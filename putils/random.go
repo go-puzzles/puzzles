@@ -168,6 +168,10 @@ func RandString(length int) string {
 	return random(Letters, length)
 }
 
+func RandStringWithLetter(letters string, length int) string {
+	return random(letters, length)
+}
+
 // RandString generate a slice of random string of length strLen based on charset.
 // chartset should be one of the following: random.Numeral, random.LowwerLetters, random.UpperLetters
 // random.Letters, random.SymbolChars, random.AllChars. or a combination of them.
