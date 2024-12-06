@@ -14,7 +14,7 @@ import (
 )
 
 func TestPuzzleRedisClient_Lock(t *testing.T) {
-	client := NewRedisClient("localhost:6379", 0)
+	client := setupTestClient(t)
 	ctx := context.Background()
 	key := "test_lock"
 
@@ -23,6 +23,7 @@ func TestPuzzleRedisClient_Lock(t *testing.T) {
 
 	// Test successful lock acquisition
 	t.Run("acquire lock success", func(t *testing.T) {
+		defer cleanupTest(t, client, key)
 		err := client.TryLock(ctx, key, time.Second)
 		assert.NoError(t, err)
 
@@ -283,7 +284,7 @@ type UserProfile struct {
 }
 
 func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
-	client := NewRedisClient("localhost:6379", 0)
+	client := setupTestClient(t)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -308,11 +309,25 @@ func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
 			expected: 42,
 		},
 		{
-			name:     "Float Value",
-			key:      "test:float",
-			value:    3.14,
+			name:     "Int64 Value",
+			key:      "test:int64",
+			value:    int64(9223372036854775807),
+			result:   new(int64),
+			expected: int64(9223372036854775807),
+		},
+		{
+			name:     "Float32 Value",
+			key:      "test:float32",
+			value:    float32(3.14),
+			result:   new(float32),
+			expected: float32(3.14),
+		},
+		{
+			name:     "Float64 Value",
+			key:      "test:float64",
+			value:    3.14159265359,
 			result:   new(float64),
-			expected: 3.14,
+			expected: 3.14159265359,
 		},
 		{
 			name:     "Boolean Value",
@@ -320,6 +335,20 @@ func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
 			value:    true,
 			result:   new(bool),
 			expected: true,
+		},
+		{
+			name:     "Time Value",
+			key:      "test:time",
+			value:    time.Date(2024, 3, 14, 15, 9, 26, 0, time.UTC),
+			result:   new(time.Time),
+			expected: time.Date(2024, 3, 14, 15, 9, 26, 0, time.UTC),
+		},
+		{
+			name:     "Bytes Value",
+			key:      "test:bytes",
+			value:    []byte{0x48, 0x65, 0x6c, 0x6c, 0x6f},
+			result:   new([]byte),
+			expected: []byte{0x48, 0x65, 0x6c, 0x6c, 0x6f},
 		},
 		{
 			name: "Struct Value",
@@ -338,6 +367,79 @@ func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
 				IsAdmin: true,
 			},
 		},
+		{
+			name: "Map String Interface Value",
+			key:  "test:map",
+			value: map[string]interface{}{
+				"name":    "John",
+				"age":     25,
+				"scores":  []int{95, 88, 92},
+				"active":  true,
+				"balance": 123.45,
+			},
+			result: &map[string]interface{}{},
+			expected: map[string]interface{}{
+				"name":    "John",
+				"age":     float64(25), // JSON numbers are decoded as float64
+				"scores":  []interface{}{float64(95), float64(88), float64(92)},
+				"active":  true,
+				"balance": 123.45,
+			},
+		},
+		{
+			name: "Slice Value",
+			key:  "test:slice",
+			value: []interface{}{
+				"string",
+				42,
+				true,
+				3.14,
+				[]string{"nested", "slice"},
+			},
+			result: &[]interface{}{},
+			expected: []interface{}{
+				"string",
+				float64(42),
+				true,
+				3.14,
+				[]interface{}{"nested", "slice"},
+			},
+		},
+		{
+			name: "Complex Struct Value",
+			key:  "test:complex_struct",
+			value: UserProfile{
+				UserID:   12345,
+				Username: "testuser",
+				Email:    "test@example.com",
+				Age:      25,
+				IsActive: true,
+				Roles:    []string{"admin", "user"},
+				Preferences: map[string]interface{}{
+					"theme":         "dark",
+					"language":      "en",
+					"timezone":      "UTC",
+					"notifications": true,
+				},
+				CreatedAt: time.Date(2024, 3, 14, 0, 0, 0, 0, time.UTC),
+			},
+			result: &UserProfile{},
+			expected: UserProfile{
+				UserID:   12345,
+				Username: "testuser",
+				Email:    "test@example.com",
+				Age:      25,
+				IsActive: true,
+				Roles:    []string{"admin", "user"},
+				Preferences: map[string]interface{}{
+					"theme":         "dark",
+					"language":      "en",
+					"timezone":      "UTC",
+					"notifications": true,
+				},
+				CreatedAt: time.Date(2024, 3, 14, 0, 0, 0, 0, time.UTC),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -350,18 +452,34 @@ func TestPuzzleRedisClient_SetValue_GetValue(t *testing.T) {
 			err = client.GetValue(ctx, tt.key, tt.result)
 			assert.NoError(t, err)
 
-			// Compare results
+			// Compare results based on type
 			switch v := tt.result.(type) {
 			case *string:
 				assert.Equal(t, tt.expected, *v)
 			case *int:
 				assert.Equal(t, tt.expected, *v)
-			case *float64:
+			case *int64:
 				assert.Equal(t, tt.expected, *v)
+			case *float32:
+				assert.InDelta(t, tt.expected, *v, 0.0001)
+			case *float64:
+				assert.InDelta(t, tt.expected, *v, 0.0000001)
 			case *bool:
+				assert.Equal(t, tt.expected, *v)
+			case *time.Time:
+				assert.Equal(t, tt.expected, *v)
+			case *[]byte:
 				assert.Equal(t, tt.expected, *v)
 			case *TestStruct:
 				assert.Equal(t, tt.expected, *v)
+			case *UserProfile:
+				assert.Equal(t, tt.expected, *v)
+			case *map[string]interface{}:
+				assert.Equal(t, tt.expected, *v)
+			case *[]interface{}:
+				assert.Equal(t, tt.expected, *v)
+			default:
+				t.Errorf("未处理的类型: %T", v)
 			}
 
 			// Clean up
@@ -790,3 +908,113 @@ func TestPuzzleRedisClient_ListOperations(t *testing.T) {
 		client.Del(ctx, key)
 	})
 }
+
+func cleanupTest(t *testing.T, client *PuzzleRedisClient, keys ...string) {
+	ctx := context.Background()
+	for _, key := range keys {
+		err := client.Del(ctx, key).Err()
+		assert.NoError(t, err)
+	}
+}
+
+func TestNewRedisClientWithAuth(t *testing.T) {
+	// Skip auth test - requires valid Redis credentials
+	t.Skip("Skipping auth test - requires valid Redis credentials")
+
+	client := NewRedisClientWithAuth("localhost:6379", 0, "testuser", "testpass")
+	ctx := context.Background()
+	err := client.Ping(ctx).Err()
+	assert.NoError(t, err)
+}
+
+func TestPuzzleRedisClient_RPushRPop(t *testing.T) {
+	client := setupTestClient(t)
+	ctx := context.Background()
+	key := "test:rpush:rpop"
+	defer cleanupTest(t, client, key)
+
+	// Test basic types
+	t.Run("basic types", func(t *testing.T) {
+		// Push multiple values
+		err := client.RPushValue(ctx, key, "value1", 42, true)
+		assert.NoError(t, err)
+
+		// Pop and verify
+		var strVal string
+		err = client.RPopValue(ctx, key, &strVal)
+		assert.NoError(t, err)
+		assert.Equal(t, "1", strVal)
+
+		var intVal int
+		err = client.RPopValue(ctx, key, &intVal)
+		assert.NoError(t, err)
+		assert.Equal(t, 42, intVal)
+
+		var lastStr string
+		err = client.RPopValue(ctx, key, &lastStr)
+		assert.NoError(t, err)
+		assert.Equal(t, "value1", lastStr)
+	})
+}
+
+func TestPuzzleRedisClient_RRangeValue(t *testing.T) {
+	client := setupTestClient(t)
+	ctx := context.Background()
+	key := "test:rrange"
+	defer cleanupTest(t, client, key)
+
+	// Prepare test data
+	values := []string{"v1", "v2", "v3", "v4", "v5"}
+	for _, v := range values {
+		err := client.RPushValue(ctx, key, v)
+		assert.NoError(t, err)
+	}
+
+	t.Run("basic rrange", func(t *testing.T) {
+		var result []string
+		err := client.RRangeValue(ctx, key, 0, 2, &result)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"v3", "v4", "v5"}, result)
+	})
+
+	t.Run("rrange with invalid indices", func(t *testing.T) {
+		// Passing nil pointer should return error
+		err := client.RRangeValue(ctx, key, 0, 1, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "result must not be nil")
+	})
+}
+
+func TestPuzzleRedisClient_ErrorHandling(t *testing.T) {
+	client := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("invalid value conversion", func(t *testing.T) {
+		// Test unconvertible type
+		ch := make(chan int)
+		err := client.SetValue(ctx, "test:invalid", ch, time.Minute)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "json marshal failed")
+	})
+
+	t.Run("invalid pointer types", func(t *testing.T) {
+		var invalidPtr *int
+		err := client.GetValue(ctx, "test:key", invalidPtr)
+		assert.Error(t, err)
+		assert.Equal(t, redis.Nil, err)
+	})
+}
+
+func TestPuzzleRedisClient_GetInstanceID(t *testing.T) {
+	client := setupTestClient(t)
+
+	id1 := client.getInstanceID()
+	id2 := client.getInstanceID()
+
+	// Verify same instance returns same ID
+	assert.Equal(t, id1, id2)
+
+	// Verify ID format matches expected pattern (hostname:pid)
+	assert.Regexp(t, `^[\w\-\.]+:\d+$`, id1)
+}
+

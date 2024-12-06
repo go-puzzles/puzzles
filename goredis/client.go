@@ -262,7 +262,13 @@ func (c *PuzzleRedisClient) convertRedisValueToType(cmd *redis.StringCmd, result
 // convertValueToRedisArg converts a value to a format suitable for Redis storage
 func (c *PuzzleRedisClient) convertValueToRedisArg(value any) (any, error) {
 	switch v := value.(type) {
-	case string, int, int64, float32, float64, bool, []byte:
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64,
+		string,
+		bool,
+		time.Time, time.Duration,
+		[]byte:
 		return v, nil
 	default:
 		jsonBytes, err := json.Marshal(v)
