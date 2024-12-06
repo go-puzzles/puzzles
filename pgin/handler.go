@@ -9,13 +9,14 @@
 package pgin
 
 import (
-	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/go-puzzles/puzzles/plog"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -47,7 +48,12 @@ func ParseRequestParams(c *gin.Context, obj any) (err error) {
 		}
 	}
 
-	return c.Bind(obj)
+	err = c.ShouldBind(obj)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return errors.Wrap(err, "bindJson")
+	}
+
+	return nil
 }
 
 func ValidateRequestParams(obj any) (err error) {
@@ -165,6 +171,7 @@ func RequestWithErrorHandler[Q any](fn requestWithErrorHandler[Q]) gin.HandlerFu
 		var err error
 
 		if err = ParseRequestParams(c, requestPtr); err != nil {
+			plog.Errorc(c, "parse request params failed: %v", err)
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
