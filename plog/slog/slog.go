@@ -122,13 +122,16 @@ func (l *Logger) logFmt(lc *logctx.LogContext, msg string, v ...any) (string, []
 	msg = s
 	keys = append(keys, lc.Keys...)
 	values = append(values, lc.Values...)
-
 	var args []any
+
 	for idx, key := range keys {
-		args = append(args, key)
-		args = append(args, values[idx])
+		args = append(args, key, values[idx])
 	}
 	args = append(args, "source", l.getSrouce())
+
+	for _, g := range lc.Group {
+		msg = fmt.Sprintf("[%s] %s", g, msg)
+	}
 
 	return msg, args
 }

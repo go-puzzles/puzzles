@@ -21,7 +21,7 @@ func init() {
 }
 
 func SetSlog() {
-	logger = slog.New(slog.WithCalldepth(6))
+	logger = slog.New(slog.WithCalldepth(5))
 }
 
 func SetLogger(l Logger) {
