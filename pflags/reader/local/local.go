@@ -2,7 +2,7 @@ package local
 
 import (
 	"os"
-	
+
 	"github.com/go-puzzles/puzzles/pflags/reader"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
@@ -30,7 +30,7 @@ func (lr *localConfigReader) ReadConfig(v *viper.Viper, opt *reader.Option) erro
 	if opt.ConfigPath == "" || !lr.fileExists(opt.ConfigPath) {
 		return nil
 	}
-	
+
 	v.SetConfigFile(opt.ConfigPath)
 	if err := v.ReadInConfig(); err != nil {
 		return errors.Wrap(err, "readInConfig")

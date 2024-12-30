@@ -1,6 +1,7 @@
 package pflags
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -18,24 +19,39 @@ import (
 )
 
 var (
-	v                 = viper.New()
-	requiredFlags     []string
-	nestedKey         = map[string]any{}
-	defaultConfigFile = "config.yaml"
-	serviceName       StringGetter
-	debug             BoolGetter
-	config            StringGetter
+	v             = viper.New()
+	requiredFlags []string
+	nestedKey     = map[string]any{}
+	serviceName   StringGetter
+	debug         BoolGetter
+	config        StringGetter
 
+	defaultConfigName                          = "config"
+	defaultConfigType                          = "yaml"
 	defaultConfigReader  reader.ConfigReader   = localReader.NewLocalConfigReader()
 	defaultConfigWatcher watcher.ConfigWatcher = localWatcher.NewLocalWatcher()
 )
 
 type Option struct {
-	configReader  reader.ConfigReader
-	configWatcher watcher.ConfigWatcher
+	configReader   reader.ConfigReader
+	configWatcher  watcher.ConfigWatcher
+	configFileName string
+	configFileType string
 }
 
 type OptionFunc func(*Option)
+
+func WithConfigFileType(t string) OptionFunc {
+	return func(o *Option) {
+		o.configFileType = t
+	}
+}
+
+func WithConfigFileName(n string) OptionFunc {
+	return func(o *Option) {
+		o.configFileName = n
+	}
+}
 
 func WithConfigReader(reader reader.ConfigReader) OptionFunc {
 	return func(o *Option) {
@@ -70,20 +86,29 @@ func SetDefaultConfigWatcher(watchers watcher.ConfigWatcher) {
 }
 
 func OverrideDefaultConfigFile(configFile string) {
-	defaultConfigFile = configFile
+	fileSplit := strings.Split("configFile", ".")
+	if len(fileSplit) != 2 {
+		plog.Fatalf("Invalid config file name: %s", configFile)
+	}
+
+	defaultConfigName = fileSplit[0]
+	defaultConfigType = fileSplit[1]
 }
 
 func Viper() *viper.Viper {
 	return v
 }
 
-func initViper() {
+func initViper(opt *Option) {
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
-	v.SetConfigFile("config.yaml")
+	v.SetConfigName("config")
+	v.SetConfigType(opt.configFileType)
+
+	defaultConfigFile := fmt.Sprintf("%s.%s", opt.configFileName, opt.configFileType)
 
 	serviceName = StringP("service", "s", os.Getenv("GO_PUZZLE_SERVICE"), "Set the service name")
-	config = StringP("config", "f", defaultConfigFile, "Specify config file. Support json, yaml.")
+	config = StringP("config", "f", defaultConfigFile, "Specify config file. Support json, yaml, toml.")
 	debug = Bool("debug", false, "Whether to enable debug mode.")
 
 	if err := v.BindPFlags(pflag.CommandLine); err != nil {
@@ -92,18 +117,15 @@ func initViper() {
 }
 
 func initOption(opts ...OptionFunc) *Option {
-	opt := &Option{}
+	opt := &Option{
+		configFileName: "config",
+		configFileType: "yaml",
+		configReader:   defaultConfigReader,
+		configWatcher:  defaultConfigWatcher,
+	}
 
 	for _, o := range opts {
 		o(opt)
-	}
-
-	if opt.configReader == nil {
-		opt.configReader = defaultConfigReader
-	}
-
-	if opt.configWatcher == nil {
-		opt.configWatcher = defaultConfigWatcher
 	}
 
 	return opt
@@ -158,11 +180,12 @@ func readConfig(opt *Option) {
 }
 
 func Parse(opts ...OptionFunc) {
-	initViper()
+	opt := initOption(opts...)
+
+	initViper(opt)
 	pflag.Parse()
 
 	snail.Init()
-	opt := initOption(opts...)
 
 	readConfig(opt)
 	checkFlagKey()
