@@ -50,7 +50,7 @@ func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Opti
 		logLevel:        level.LevelInfo,
 		slogLoggerLevel: lev,
 		slogOpt:         opt,
-		callDepth:       5,
+		callDepth:       4,
 	}
 
 	for _, opt := range opts {
@@ -158,23 +158,25 @@ func (l *Logger) Fatalc(ctx context.Context, msg string, v ...any) {
 }
 
 func (l *Logger) Infof(msg string, v ...any) {
-	l.Infoc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.logger.InfoContext, msg, v...)
 }
 
 func (l *Logger) Debugf(msg string, v ...any) {
-	l.Debugc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.logger.DebugContext, msg, v...)
 }
 
 func (l *Logger) Warnf(msg string, v ...any) {
-	l.Warnc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.logger.WarnContext, msg, v...)
 }
 
 func (l *Logger) Errorf(msg string, v ...any) {
-	l.Errorc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.logger.ErrorContext, msg, v...)
 }
 
 func (l *Logger) Fatalf(msg string, v ...any) {
-	l.Fatalc(context.Background(), msg, v...)
+	l.logc(context.TODO(), l.logger.ErrorContext, msg, v...)
+	os.Exit(1)
+
 }
 
 func (l *Logger) PanicError(err error, v ...any) {
@@ -189,6 +191,6 @@ func (l *Logger) PanicError(err error, v ...any) {
 		s = err.Error()
 	}
 
-	l.Errorc(context.Background(), s)
+	l.logc(context.TODO(), l.logger.ErrorContext, s)
 	panic(err)
 }

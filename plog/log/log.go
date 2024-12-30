@@ -226,7 +226,6 @@ func (l *Logger) PanicError(err error, v ...any) {
 	} else {
 		s = err.Error()
 	}
-
-	l.Errorc(context.Background(), s)
+	l.logc(context.TODO(), l.errLog, s)
 	panic(err)
 }
