@@ -3,11 +3,11 @@ package pgorm
 import (
 	"fmt"
 	"time"
-	
+
 	"github.com/go-puzzles/puzzles/dialer"
 	"github.com/go-puzzles/puzzles/dialer/sqlite"
 	"gorm.io/gorm"
-	
+
 	thirdparty "github.com/go-puzzles/puzzles/plog/third-party"
 )
 
@@ -27,15 +27,28 @@ func (s *SqliteConfig) GetUid() string {
 	return fmt.Sprintf("sqlite-%v", s.DbFile)
 }
 
-func (s *SqliteConfig) DialGorm() (*gorm.DB, error) {
+func (s *SqliteConfig) DialGorm(opts ...DialOptionFunc) (*gorm.DB, error) {
 	logPrefix := fmt.Sprintf("sqlite:%s", s.DbFile)
+
+	dialOpt := &DialOption{
+		LogPrefix:     logPrefix,
+		SlowThreshold: time.Millisecond * 200,
+	}
+	for _, optFunc := range opts {
+		optFunc(dialOpt)
+	}
+
+	loggerOpt := []thirdparty.GormLoggerOption{
+		thirdparty.WithPrefix(dialOpt.LogPrefix),
+		thirdparty.WithSlowThreshold(dialOpt.SlowThreshold),
+	}
+
+	if dialOpt.IgnoreRecordNotFound {
+		loggerOpt = append(loggerOpt, thirdparty.WithIgnoreRecordNotFound())
+	}
+
 	return sqlite.DialSqlLiteGorm(
 		s.DbFile,
-		dialer.WithLogger(
-			thirdparty.NewGormLogger(
-				thirdparty.WithPrefix(logPrefix),
-				thirdparty.WithSlowThreshold(time.Millisecond*200),
-			),
-		),
+		dialer.WithLogger(thirdparty.NewGormLogger(loggerOpt...)),
 	)
 }
