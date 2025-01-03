@@ -104,7 +104,6 @@ func (m *MysqlConfig) DialGorm(opts ...DialOptionFunc) (*gorm.DB, error) {
 		SlowThreshold: time.Millisecond * 200,
 	}
 
-	fmt.Println(opts)
 	for _, optFunc := range opts {
 		optFunc(dialOpt)
 	}
@@ -113,7 +112,6 @@ func (m *MysqlConfig) DialGorm(opts ...DialOptionFunc) (*gorm.DB, error) {
 		thirdparty.WithPrefix(dialOpt.LogPrefix),
 		thirdparty.WithSlowThreshold(dialOpt.SlowThreshold),
 	}
-	fmt.Println(dialOpt)
 	if dialOpt.IgnoreRecordNotFound {
 		loggerOpt = append(loggerOpt, thirdparty.WithIgnoreRecordNotFound())
 	}
