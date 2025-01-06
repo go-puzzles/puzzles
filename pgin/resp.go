@@ -21,7 +21,17 @@ func SuccessRet(data any) *Ret {
 }
 
 func ErrorRet(code int, message any) *Ret {
-	return &Ret{Code: code, Data: nil, Message: message}
+	var msg any
+	switch m := message.(type) {
+	case string:
+		msg = m
+	case error:
+		msg = m.Error()
+	default:
+		msg = m
+	}
+
+	return &Ret{Code: code, Data: nil, Message: msg}
 }
 
 func ReturnSuccess(c *gin.Context, data any) {
