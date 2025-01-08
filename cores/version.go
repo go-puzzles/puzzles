@@ -1,5 +1,5 @@
 package cores
 
 const (
-	version = "v1.1.6"
+	version = "v1.1.28"
 )
