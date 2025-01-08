@@ -45,7 +45,7 @@ type grpcPuzzles struct {
 
 type grpcPuzzlesOption func(gp *grpcPuzzles)
 
-func WithCoreGrpcUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpcPuzzlesOption {
+func WithUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpcPuzzlesOption {
 	return func(gp *grpcPuzzles) {
 		gp.unaryInterceptors = append(gp.unaryInterceptors, interceptors...)
 		plog.Debugf("Grpc unary interceptors enabled.")

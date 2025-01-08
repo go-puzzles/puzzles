@@ -26,7 +26,7 @@ func main() {
 		grpcpuzzle.WithCoreGrpcPuzzle(func(srv *grpc.Server) {
 			examplepb.RegisterExampleHelloServiceServer(srv, example)
 			testpb.RegisterExampleHelloServiceServer(srv, test)
-		}, grpcpuzzle.WithCoreGrpcUnaryInterceptors(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		}, grpcpuzzle.WithUnaryInterceptors(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 			fmt.Println(info)
 			return handler(ctx, req)
 		})),
