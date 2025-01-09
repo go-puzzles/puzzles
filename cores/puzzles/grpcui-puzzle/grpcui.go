@@ -63,7 +63,7 @@ func (g *grpcUiPuzzles) Before(opt *cores.Options) error {
 }
 
 func (g *grpcUiPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
-	ctx, cancel := context.WithTimeout(opt.Ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
 	select {

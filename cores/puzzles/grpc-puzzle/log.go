@@ -17,6 +17,10 @@ import (
 )
 
 func unaryServerLoggerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	if strings.HasPrefix(info.FullMethod, "/grpc.reflection") {
+		return handler(ctx, req)
+	}
+
 	prefix := strings.TrimPrefix(info.FullMethod, "/")
 	ctx = plog.With(ctx, prefix)
 
@@ -33,6 +37,10 @@ func unaryServerLoggerInterceptor(ctx context.Context, req interface{}, info *gr
 }
 
 func StreamServerLoggerInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if strings.HasPrefix(info.FullMethod, "/grpc.reflection") {
+		return handler(srv, ss)
+	}
+
 	ctx := ss.Context()
 
 	prefix := strings.TrimPrefix(info.FullMethod, "/")
