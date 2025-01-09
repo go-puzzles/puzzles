@@ -9,7 +9,6 @@
 package pgin
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
@@ -20,7 +19,6 @@ import (
 
 func init() {
 	snail.RegisterObject("ginModeSet", func() error {
-		fmt.Println(plog.IsDebug())
 		if plog.IsDebug() {
 			gin.SetMode(gin.DebugMode)
 		} else {
