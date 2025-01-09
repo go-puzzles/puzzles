@@ -5,13 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sync/errgroup"
 )
+
+type listenerGetter func() net.Listener
 
 type listenEntry interface {
 	~int | ~string
@@ -34,6 +38,7 @@ type CoreService struct {
 	cancel   func()
 	opts     *Options
 	listener net.Listener
+	cmux     cmux.CMux
 
 	cron     *cron.Cron
 	mountFns []mountFn
@@ -44,8 +49,13 @@ type Options struct {
 	ListenerAddr string
 	ServiceName  string
 	Tags         []string
-	Cmux         cmux.CMux
 	WaitPprof    chan struct{}
+
+	GrpcListener listenerGetter
+	HttpListener listenerGetter
+
+	HttpMux     *http.ServeMux
+	HttpHandler http.Handler
 
 	puzzles map[string]Puzzle
 	workers []Worker
@@ -62,21 +72,24 @@ type ServiceOption func(*Options)
 func NewPuzzleCore(opts ...ServiceOption) *CoreService {
 	ctx, cancel := context.WithCancel(context.TODO())
 
-	c := &CoreService{
-		ctx:    ctx,
-		cancel: cancel,
-		opts: &Options{
-			Ctx:     ctx,
-			puzzles: make(map[string]Puzzle),
-			workers: make([]Worker, 0),
-		},
-		mountFns: make([]mountFn, 0),
+	coreOpts := &Options{
+		Ctx:     ctx,
+		HttpMux: http.NewServeMux(),
+		puzzles: make(map[string]Puzzle),
+		workers: make([]Worker, 0),
 	}
+	coreOpts.HttpHandler = coreOpts.HttpMux
 
 	for _, opt := range opts {
-		opt(c.opts)
+		opt(coreOpts)
 	}
-	return c
+
+	return &CoreService{
+		ctx:      ctx,
+		opts:     coreOpts,
+		cancel:   cancel,
+		mountFns: make([]mountFn, 0),
+	}
 }
 
 func (c *CoreService) options() *Options {
@@ -85,6 +98,32 @@ func (c *CoreService) options() *Options {
 
 func (c *CoreService) isHttpRun() bool {
 	return c.listener != nil
+}
+
+func (c *CoreService) listenerMatch(matcher ...cmux.Matcher) listenerGetter {
+	var lst net.Listener
+	var once sync.Once
+
+	return func() net.Listener {
+		once.Do(func() {
+			lst = c.cmux.Match(matcher...)
+		})
+
+		return lst
+	}
+}
+
+func (c *CoreService) listenerMatchWithWriter(matcher ...cmux.MatchWriter) listenerGetter {
+	var lst net.Listener
+	var once sync.Once
+
+	return func() net.Listener {
+		once.Do(func() {
+			lst = c.cmux.MatchWithWriters(matcher...)
+		})
+
+		return lst
+	}
 }
 
 func (c *CoreService) runMountFn() error {
@@ -114,14 +153,41 @@ func (c *CoreService) serve() error {
 	}
 
 	if c.listener != nil {
-		c.opts.Cmux = cmux.New(c.listener)
+		c.cmux = cmux.New(c.listener)
+		c.opts.GrpcListener = c.listenerMatchWithWriter(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
+		c.opts.HttpListener = c.listenerMatchWithWriter(
+			HTTP1FastMatchWriter(),
+			HTTP2MatchWithHeaderExclude("content-type", "application/grpc"),
+		)
+
+		c.mountFns = append(c.mountFns, c.listenHttp())
 		c.mountFns = append(c.mountFns, c.listenCmux())
 	}
-
-	c.wrapWorker()
 	c.wrapPuzzles()
+	c.wrapWorker()
 	c.welcome()
 	return c.runMountFn()
+}
+
+func (c *CoreService) listenHttp() mountFn {
+	return mountFn{
+		fn: func(ctx context.Context) (err error) {
+			defer func() {
+				if errors.Is(err, net.ErrClosed) {
+					err = nil
+				}
+
+				if err != nil {
+					plog.Errorc(ctx, "HttpListener serve error: %v", err)
+				}
+			}()
+
+			err = http.Serve(c.opts.HttpListener(), c.opts.HttpHandler)
+			return
+		},
+		name:   "HttpListener",
+		daemon: true,
+	}
 }
 
 func (c *CoreService) listenCmux() mountFn {
@@ -136,7 +202,8 @@ func (c *CoreService) listenCmux() mountFn {
 					plog.Errorc(ctx, "Cmux serve error: %v", err)
 				}
 			}()
-			return c.opts.Cmux.Serve()
+
+			return c.cmux.Serve()
 		},
 		name:   "CmuxListener",
 		daemon: true,

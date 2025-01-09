@@ -15,10 +15,12 @@ import (
 	"github.com/go-puzzles/puzzles/snail"
 	"github.com/pkg/errors"
 
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 	consulReader "github.com/go-puzzles/puzzles/pflags/reader/consul"
 )
 
 type consulPuzzle struct {
+	*basepuzzle.BasePuzzle
 }
 
 var (
@@ -45,12 +47,12 @@ func init() {
 
 func WithConsulRegister() cores.ServiceOption {
 	return func(o *cores.Options) {
-		o.RegisterPuzzle(&consulPuzzle{})
+		o.RegisterPuzzle(&consulPuzzle{
+			BasePuzzle: &basepuzzle.BasePuzzle{
+				PuzzleName: "ConsulRegisterHandler",
+			},
+		})
 	}
-}
-
-func (cp *consulPuzzle) Name() string {
-	return "ConsulRegisterHandler"
 }
 
 func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) error {

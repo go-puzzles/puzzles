@@ -2,26 +2,29 @@ package httppuzzle
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"strings"
 
 	"github.com/go-puzzles/puzzles/cores"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 	"github.com/rs/cors"
-	"github.com/soheilhy/cmux"
+
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 )
 
 type httpPuzzles struct {
-	lis      net.Listener
+	*basepuzzle.BasePuzzle
 	httpCors bool
+	pattern  string
 	router   *mux.Router
 }
 
 var (
 	hp = &httpPuzzles{
+		BasePuzzle: &basepuzzle.BasePuzzle{
+			PuzzleName: "HttpHandler",
+		},
 		router: mux.NewRouter(),
 	}
 )
@@ -41,13 +44,10 @@ func WithCoreHttpPuzzle(pattern string, handler http.Handler) cores.ServiceOptio
 		}
 		defer plog.Infof("Registered http endpoint prefix. Prefix=%s", pattern)
 
-		hp.router.PathPrefix(pattern).Handler(http.StripPrefix(strings.TrimSuffix(pattern, "/"), handler))
+		hp.pattern = pattern
+		hp.router.PathPrefix(pattern).Handler(http.StripPrefix(pattern, handler))
 		o.RegisterPuzzle(hp)
 	}
-}
-
-func (h *httpPuzzles) Name() string {
-	return "HttpHandler"
 }
 
 func (h *httpPuzzles) waitForOtherPuzzles(opt *cores.Options) {
@@ -59,28 +59,17 @@ func (h *httpPuzzles) waitForOtherPuzzles(opt *cores.Options) {
 }
 
 func (h *httpPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
-	if opt.Cmux == nil {
-		return errors.New("no http listener specify. please run service with cores.Start")
-	}
-
 	h.waitForOtherPuzzles(opt)
-
-	lis := opt.Cmux.Match(cmux.HTTP1Fast(), cmux.HTTP2())
-	h.lis = lis
 
 	var handler http.Handler = h.router
 	if h.httpCors {
 		handler = cors.AllowAll().Handler(handler)
 	}
-	return http.Serve(lis, handler)
+
+	opt.HttpMux.Handle(hp.pattern+"/", h.router)
+	return nil
 }
 
 func (h *httpPuzzles) Stop() (err error) {
-	defer func() {
-		plog.Debugf("http puzzle stopped...")
-		if errors.Is(err, net.ErrClosed) {
-			err = nil
-		}
-	}()
-	return h.lis.Close()
+	return nil
 }

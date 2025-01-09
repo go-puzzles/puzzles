@@ -10,21 +10,26 @@ import (
 
 	"github.com/fullstorydev/grpcui/standalone"
 	"github.com/go-puzzles/puzzles/cores"
-	grpcpuzzle "github.com/go-puzzles/puzzles/cores/puzzles/grpc-puzzle"
 	"github.com/go-puzzles/puzzles/plog"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
+	grpcpuzzle "github.com/go-puzzles/puzzles/cores/puzzles/grpc-puzzle"
 )
 
 var (
-	gup       = &grpcUiPuzzles{}
+	gup = &grpcUiPuzzles{
+		BasePuzzle: &basepuzzle.BasePuzzle{
+			PuzzleName: "GrpcUIHandler",
+		},
+	}
 	grpcuiUrl = "/debug/grpc/ui/"
 )
 
 type grpcUiPuzzles struct {
-	grpcUILis    net.Listener
+	*basepuzzle.BasePuzzle
 	grpcSelfConn *grpc.ClientConn
 }
 
@@ -34,22 +39,9 @@ func WithCoreGrpcUI() cores.ServiceOption {
 	}
 }
 
-func (g *grpcUiPuzzles) setupGrpcUIRouter(ctx context.Context, serviceName string) (*mux.Router, error) {
-	router := mux.NewRouter()
-
-	handler, err := standalone.HandlerViaReflection(ctx, g.grpcSelfConn, serviceName)
-	if err != nil {
-		return nil, errors.Wrap(err, "start grpcUI")
-	}
-	router.PathPrefix(grpcuiUrl).Handler(http.StripPrefix(strings.TrimSuffix(grpcuiUrl, "/"), handler))
-
-	return router, nil
-}
-
-func (g *grpcUiPuzzles) prepareSelfConnect() error {
-	_, port, _ := net.SplitHostPort(grpcpuzzle.GrpcSrvListener().Addr().String())
+func (g *grpcUiPuzzles) prepareSelfConnect(lisAddr string) error {
+	_, port, _ := net.SplitHostPort(lisAddr)
 	target := fmt.Sprintf("127.0.0.1:%s", port)
-
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(16 * 1024 * 1024)),
@@ -62,8 +54,12 @@ func (g *grpcUiPuzzles) prepareSelfConnect() error {
 	return nil
 }
 
-func (g *grpcUiPuzzles) Name() string {
-	return "GrpcUIHandler"
+func (g *grpcUiPuzzles) Before(opt *cores.Options) error {
+	if err := g.prepareSelfConnect(opt.ListenerAddr); err != nil {
+		return errors.Wrap(err, "prepareSelfConnect")
+	}
+
+	return nil
 }
 
 func (g *grpcUiPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
@@ -76,23 +72,18 @@ func (g *grpcUiPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) err
 	case <-grpcpuzzle.IsGrpcServerInit():
 	}
 
-	glis := opt.Cmux.Match(cores.HttpPrefixMatcher(strings.TrimSuffix(grpcuiUrl, "/")))
-	g.grpcUILis = glis
-
-	if err := g.prepareSelfConnect(); err != nil {
-		return errors.Wrap(err, "prepareSelfConnect")
-	}
-	router, err := g.setupGrpcUIRouter(opt.Ctx, opt.ServiceName)
+	handler, err := standalone.HandlerViaReflection(ctx, g.grpcSelfConn, opt.ServiceName)
 	if err != nil {
-		return errors.Wrap(err, "setupGrpcUIRouter")
+		return errors.Wrap(err, "start grpcUI")
 	}
+
+	opt.HttpMux.Handle(grpcuiUrl, http.StripPrefix(strings.TrimSuffix(grpcuiUrl, "/"), handler))
 
 	plog.Infoc(ctx, "GRPCUI enabled. URL=%s", fmt.Sprintf("http://%s%s", g.grpcSelfConn.Target(), grpcuiUrl))
-	return http.Serve(glis, router)
+	return nil
 }
 
 func (g *grpcUiPuzzles) Stop() error {
 	defer plog.Debugf("grpcui puzzle stopped...")
-	g.grpcSelfConn.Close()
-	return g.grpcUILis.Close()
+	return g.grpcSelfConn.Close()
 }

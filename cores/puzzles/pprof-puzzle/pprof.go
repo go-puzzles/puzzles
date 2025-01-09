@@ -11,60 +11,66 @@ package pprofpuzzle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"strings"
 
 	"github.com/go-puzzles/puzzles/cores"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/gorilla/mux"
+
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 )
 
 var (
-	pp       = &pprofPuzzles{}
+	pp = &pprofPuzzles{
+		BasePuzzle: &basepuzzle.BasePuzzle{
+			PuzzleName: "PprofHandler",
+		},
+	}
 	pprofUrl = "/debug/pprof/"
 )
 
 type pprofPuzzles struct {
+	*basepuzzle.BasePuzzle
 	lis net.Listener
 }
 
 func WithCorePprof() cores.ServiceOption {
 	return func(o *cores.Options) {
-		plog.Infof("Pprof eanble. Prefix=%s", pprofUrl)
 		o.WaitPprof = make(chan struct{})
 		o.RegisterPuzzle(pp)
 	}
 }
 
-func (p *pprofPuzzles) Name() string {
-	return "pprofPuzzle"
-}
-
 func (p *pprofPuzzles) StartPuzzle(ctx context.Context, opts *cores.Options) error {
-	if opts.Cmux == nil {
-		return errors.New("no http listener specify. please run service with cores.Start")
+	_, port, _ := net.SplitHostPort(opts.ListenerAddr)
+	target := fmt.Sprintf("localhost:%s", port)
+
+	router := mux.NewRouter()
+
+	registerHandler := func(path string) *mux.Route {
+		return router.Host("127.0.0.1").Path(path)
 	}
 
-	pLis := opts.Cmux.Match(cores.HttpPrefixMatcher(strings.TrimSuffix(pprofUrl, "/")))
-	p.lis = pLis
+	registerHandler("/").HandlerFunc(pprof.Index)
+	registerHandler("/allocs").Handler(pprof.Handler("allocs"))
+	registerHandler("/block").Handler(pprof.Handler("block"))
+	registerHandler("/cmdline").HandlerFunc(pprof.Cmdline)
+	registerHandler("/goroutine").Handler(pprof.Handler("goroutine"))
+	registerHandler("/heap").Handler(pprof.Handler("heap"))
+	registerHandler("/mutex").Handler(pprof.Handler("mutex"))
+	registerHandler("/profile").HandlerFunc(pprof.Profile)
+	registerHandler("/threadcreate").Handler(pprof.Handler("threadcreate"))
+	registerHandler("/trace").HandlerFunc(pprof.Trace)
+	registerHandler("/symbol").HandlerFunc(pprof.Symbol)
 
-	handler := mux.NewRouter()
-	handler.HandleFunc(pprofUrl, pprof.Index)
-	handler.Handle(pprofUrl+"allocs", pprof.Handler("allocs"))
-	handler.Handle(pprofUrl+"block", pprof.Handler("block"))
-	handler.HandleFunc(pprofUrl+"cmdline", pprof.Cmdline)
-	handler.Handle(pprofUrl+"goroutine", pprof.Handler("goroutine"))
-	handler.Handle(pprofUrl+"heap", pprof.Handler("heap"))
-	handler.Handle(pprofUrl+"mutex", pprof.Handler("mutex"))
-	handler.HandleFunc(pprofUrl+"profile", pprof.Profile)
-	handler.Handle(pprofUrl+"threadcreate", pprof.Handler("threadcreate"))
-	handler.HandleFunc(pprofUrl+"trace", pprof.Trace)
-	handler.HandleFunc(pprofUrl+"symbol", pprof.Symbol)
-
+	opts.HttpMux.Handle(pprofUrl, http.StripPrefix("/debug/pprof", router))
 	opts.WaitPprof <- struct{}{}
-	return http.Serve(pLis, handler)
+
+	plog.Infoc(ctx, "Pprof enabled. URL=%s", fmt.Sprintf("http://%s%s", target, pprofUrl))
+	return nil
 }
 
 func (p *pprofPuzzles) Stop() (err error) {

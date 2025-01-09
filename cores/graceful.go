@@ -37,8 +37,8 @@ func (c *CoreService) gracefulKill() mountFn {
 				plog.Infoc(c.ctx, "Graceful stopping puzzles...")
 				c.GracefulStopPuzzle()
 
-				if c.opts.Cmux != nil {
-					c.opts.Cmux.Close()
+				if c.cmux != nil {
+					c.cmux.Close()
 				}
 
 				if c.listener != nil {

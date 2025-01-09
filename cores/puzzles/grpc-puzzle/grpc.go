@@ -5,9 +5,8 @@ import (
 	"net"
 
 	"github.com/go-puzzles/puzzles/cores"
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 	"github.com/go-puzzles/puzzles/plog"
-	"github.com/pkg/errors"
-	"github.com/soheilhy/cmux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -17,6 +16,9 @@ var (
 	grpcInit = make(chan struct{}, 1)
 
 	gp = &grpcPuzzles{
+		BasePuzzle: &basepuzzle.BasePuzzle{
+			PuzzleName: "GrpcHandler",
+		},
 		opts: make([]grpc.ServerOption, 0),
 		unaryInterceptors: []grpc.UnaryServerInterceptor{
 			unaryServerLoggerInterceptor,
@@ -31,11 +33,8 @@ func IsGrpcServerInit() <-chan struct{} {
 	return grpcInit
 }
 
-func GrpcSrvListener() net.Listener {
-	return grpcLis
-}
-
 type grpcPuzzles struct {
+	*basepuzzle.BasePuzzle
 	grpcSrv            *grpc.Server
 	grpcServersFunc    []func(*grpc.Server)
 	unaryInterceptors  []grpc.UnaryServerInterceptor
@@ -49,6 +48,12 @@ func WithUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpcPuzz
 	return func(gp *grpcPuzzles) {
 		gp.unaryInterceptors = append(gp.unaryInterceptors, interceptors...)
 		plog.Debugf("Grpc unary interceptors enabled.")
+	}
+}
+
+func WithServerOptions(opts ...grpc.ServerOption) grpcPuzzlesOption {
+	return func(gp *grpcPuzzles) {
+		gp.opts = append(gp.opts, opts...)
 	}
 }
 
@@ -66,15 +71,7 @@ func WithCoreGrpcPuzzle(grpcSrv func(srv *grpc.Server), opts ...grpcPuzzlesOptio
 	}
 }
 
-func (g *grpcPuzzles) Name() string {
-	return "GrpcHandler"
-}
-
-func (g *grpcPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
-	if opt.Cmux == nil {
-		return errors.New("no http listener specify. please run service with cores.Start")
-	}
-
+func (g *grpcPuzzles) Before(opt *cores.Options) error {
 	if len(g.unaryInterceptors) != 0 {
 		g.opts = append(g.opts, grpc.ChainUnaryInterceptor(g.unaryInterceptors...))
 	}
@@ -83,16 +80,19 @@ func (g *grpcPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error
 		g.opts = append(g.opts, grpc.ChainStreamInterceptor(g.streamInterceptors...))
 	}
 
-	grpcLis = opt.Cmux.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
 	g.grpcSrv = grpc.NewServer(g.opts...)
-
 	for _, fn := range g.grpcServersFunc {
 		fn(g.grpcSrv)
 	}
 
-	reflection.Register(g.grpcSrv)
+	return nil
+}
+
+func (g *grpcPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
 	grpcInit <- struct{}{}
-	return g.grpcSrv.Serve(grpcLis)
+
+	reflection.Register(g.grpcSrv)
+	return g.grpcSrv.Serve(opt.GrpcListener())
 }
 
 func (g *grpcPuzzles) Stop() error {
