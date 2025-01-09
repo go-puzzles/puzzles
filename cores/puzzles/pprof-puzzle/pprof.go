@@ -51,7 +51,7 @@ func (p *pprofPuzzles) StartPuzzle(ctx context.Context, opts *cores.Options) err
 	router := mux.NewRouter()
 
 	registerHandler := func(path string) *mux.Route {
-		return router.Host("127.0.0.1").Path(path)
+		return router.Path(path)
 	}
 
 	registerHandler("/").HandlerFunc(pprof.Index)
