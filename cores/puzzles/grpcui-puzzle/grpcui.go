@@ -22,7 +22,7 @@ import (
 var (
 	gup = &grpcUiPuzzles{
 		BasePuzzle: &basepuzzle.BasePuzzle{
-			PuzzleName: "GrpcUIHandler",
+			PuzzleName: "GrpcuiPuzzle",
 		},
 	}
 	grpcuiUrl = "/debug/grpc/ui/"
@@ -79,7 +79,7 @@ func (g *grpcUiPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) err
 
 	opt.HttpMux.Handle(grpcuiUrl, http.StripPrefix(strings.TrimSuffix(grpcuiUrl, "/"), handler))
 
-	plog.Infoc(ctx, "GRPCUI enabled. URL=%s", fmt.Sprintf("http://%s%s", g.grpcSelfConn.Target(), grpcuiUrl))
+	plog.Debugc(ctx, "GrpcuiPuzzle enabled. URL=%s", fmt.Sprintf("http://%s%s", g.grpcSelfConn.Target(), grpcuiUrl))
 	return nil
 }
 

@@ -2,6 +2,8 @@ package httppuzzle
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -23,7 +25,7 @@ type httpPuzzles struct {
 var (
 	hp = &httpPuzzles{
 		BasePuzzle: &basepuzzle.BasePuzzle{
-			PuzzleName: "HttpHandler",
+			PuzzleName: "HttpPuzzle",
 		},
 		router: mux.NewRouter(),
 	}
@@ -32,7 +34,7 @@ var (
 func WithCoreHttpCORS() cores.ServiceOption {
 	return func(o *cores.Options) {
 		hp.httpCors = true
-		plog.Infof("Http enable CORS")
+		plog.Debugf("Http enable CORS")
 		o.RegisterPuzzle(hp)
 	}
 }
@@ -42,7 +44,6 @@ func WithCoreHttpPuzzle(pattern string, handler http.Handler) cores.ServiceOptio
 		if !strings.HasPrefix(pattern, "/") {
 			pattern = "/" + pattern
 		}
-		defer plog.Infof("Registered http endpoint prefix. Prefix=%s", pattern)
 
 		hp.pattern = pattern
 		hp.router.PathPrefix(pattern).Handler(http.StripPrefix(pattern, handler))
@@ -67,6 +68,11 @@ func (h *httpPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error
 	}
 
 	opt.HttpMux.Handle(hp.pattern+"/", h.router)
+
+	_, port, _ := net.SplitHostPort(opt.ListenerAddr)
+	target := fmt.Sprintf("127.0.0.1:%s", port)
+	plog.Debugc(ctx, "HttpPuzzle enabled. URL=%s", fmt.Sprintf("http://%s%s", target, h.pattern))
+
 	return nil
 }
 

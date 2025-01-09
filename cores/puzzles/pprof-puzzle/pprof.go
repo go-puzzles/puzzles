@@ -26,7 +26,7 @@ import (
 var (
 	pp = &pprofPuzzles{
 		BasePuzzle: &basepuzzle.BasePuzzle{
-			PuzzleName: "PprofHandler",
+			PuzzleName: "PprofPuzzle",
 		},
 	}
 	pprofUrl = "/debug/pprof/"
@@ -69,7 +69,7 @@ func (p *pprofPuzzles) StartPuzzle(ctx context.Context, opts *cores.Options) err
 	opts.HttpMux.Handle(pprofUrl, http.StripPrefix("/debug/pprof", router))
 	opts.WaitPprof <- struct{}{}
 
-	plog.Infoc(ctx, "Pprof enabled. URL=%s", fmt.Sprintf("http://%s%s", target, pprofUrl))
+	plog.Debugc(ctx, "PprofPuzzle enabled. URL=%s", fmt.Sprintf("http://%s%s", target, pprofUrl))
 	return nil
 }
 
