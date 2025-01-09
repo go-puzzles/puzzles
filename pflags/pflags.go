@@ -185,14 +185,14 @@ func Parse(opts ...OptionFunc) {
 	initViper(opt)
 	pflag.Parse()
 
+	if debug.Value() {
+		plog.Enable(level.LevelDebug)
+	}
+
 	snail.Init()
 
 	readConfig(opt)
 	checkFlagKey()
-
-	if debug.Value() {
-		plog.Enable(level.LevelDebug)
-	}
 
 	if opt.configWatcher != nil {
 		opt.configWatcher.WatchConfig(v, config())

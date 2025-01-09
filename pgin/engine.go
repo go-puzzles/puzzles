@@ -9,15 +9,28 @@
 package pgin
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-puzzles/puzzles/plog"
+	"github.com/go-puzzles/puzzles/snail"
 )
 
-func Default(opts ...gin.OptionFunc) *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
+func init() {
+	snail.RegisterObject("ginModeSet", func() error {
+		fmt.Println(plog.IsDebug())
+		if plog.IsDebug() {
+			gin.SetMode(gin.DebugMode)
+		} else {
+			gin.SetMode(gin.ReleaseMode)
+		}
+		return nil
+	})
+}
 
+func Default(opts ...gin.OptionFunc) *gin.Engine {
 	engine := gin.New()
 	engine.Use(LoggerMiddleware(), gin.Recovery())
 	return engine.With(opts...)
