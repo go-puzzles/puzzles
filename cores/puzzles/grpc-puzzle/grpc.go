@@ -5,10 +5,11 @@ import (
 	"net"
 
 	"github.com/go-puzzles/puzzles/cores"
-	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 	"github.com/go-puzzles/puzzles/plog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 )
 
 var (
@@ -51,6 +52,13 @@ func WithUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpcPuzz
 	}
 }
 
+func WithStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) grpcPuzzlesOption {
+	return func(gp *grpcPuzzles) {
+		gp.streamInterceptors = append(gp.streamInterceptors, interceptors...)
+		plog.Debugf("Grpc stream interceptors enabled.")
+	}
+}
+
 func WithServerOptions(opts ...grpc.ServerOption) grpcPuzzlesOption {
 	return func(gp *grpcPuzzles) {
 		gp.opts = append(gp.opts, opts...)
@@ -85,13 +93,14 @@ func (g *grpcPuzzles) Before(opt *cores.Options) error {
 		fn(g.grpcSrv)
 	}
 
+	reflection.Register(g.grpcSrv)
+
 	return nil
 }
 
 func (g *grpcPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error {
 	grpcInit <- struct{}{}
 
-	reflection.Register(g.grpcSrv)
 	return g.grpcSrv.Serve(opt.GrpcListener())
 }
 

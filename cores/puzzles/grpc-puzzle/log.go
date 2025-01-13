@@ -45,6 +45,7 @@ func StreamServerLoggerInterceptor(srv interface{}, ss grpc.ServerStream, info *
 
 	prefix := strings.TrimPrefix(info.FullMethod, "/")
 	ctx = plog.With(ctx, prefix)
+	ss = newInjectServerStream(ctx, ss)
 
 	td := plog.TimeFuncDuration()
 	err := handler(srv, ss)
