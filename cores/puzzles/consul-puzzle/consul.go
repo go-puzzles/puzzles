@@ -91,5 +91,6 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 }
 
 func (cp *consulPuzzle) Stop() error {
+	discover.GetServiceFinder().Close()
 	return nil
 }
