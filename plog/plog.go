@@ -24,6 +24,10 @@ func SetSlog() {
 	logger = slog.New(slog.WithCalldepth(5))
 }
 
+func GetLogger() Logger {
+	return logger
+}
+
 func SetLogger(l Logger) {
 	logger = l
 }
