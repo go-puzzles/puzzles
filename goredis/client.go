@@ -160,6 +160,10 @@ func (c *PuzzleRedisClient) GetValue(ctx context.Context, key string, result any
 	return c.convertRedisValueToType(cmd, result)
 }
 
+func (c *PuzzleRedisClient) DeleteValue(ctx context.Context, key string) error {
+	return c.Client.Del(ctx, key).Err()
+}
+
 func (c *PuzzleRedisClient) LPushValue(ctx context.Context, key string, values ...any) error {
 	args := make([]any, len(values))
 	for i, value := range values {
