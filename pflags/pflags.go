@@ -33,6 +33,7 @@ var (
 )
 
 type Option struct {
+	// configReader will set to consulReader while consulpuzzle is used
 	configReader   reader.ConfigReader
 	configWatcher  watcher.ConfigWatcher
 	configFileName string
@@ -120,8 +121,6 @@ func initOption(opts ...OptionFunc) *Option {
 	opt := &Option{
 		configFileName: "config",
 		configFileType: "yaml",
-		configReader:   defaultConfigReader,
-		configWatcher:  defaultConfigWatcher,
 	}
 
 	for _, o := range opts {
@@ -190,6 +189,8 @@ func Parse(opts ...OptionFunc) {
 	}
 
 	snail.Init()
+	opt.configReader = defaultConfigReader
+	opt.configWatcher = defaultConfigWatcher
 
 	readConfig(opt)
 	checkFlagKey()

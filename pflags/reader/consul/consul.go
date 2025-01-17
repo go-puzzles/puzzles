@@ -18,7 +18,7 @@ func ConsulReader() *ConfigReader {
 }
 
 func (cr *ConfigReader) ReadConfig(v *viper.Viper, opt *reader.Option) error {
-	if opt.ServiceName == "" && opt.Tag == "" {
+	if opt.ServiceName == "" || opt.Tag == "" {
 		return errors.New("No service find. ServiceName and Tag is empty.")
 	}
 	path := fmt.Sprintf("/etc/configs/%v/%v.yaml", opt.ServiceName, opt.Tag)
