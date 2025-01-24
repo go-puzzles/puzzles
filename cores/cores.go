@@ -135,6 +135,7 @@ func (c *CoreService) runMountFn() error {
 		grp.Go(func() (err error) {
 			err = waitContext(cc, false, mf.fn)
 			if err != nil {
+				plog.Errorc(cc, "handle mount error: %v", err)
 				if mf.daemon {
 					return err
 				}
