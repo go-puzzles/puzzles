@@ -3,6 +3,7 @@ module github.com/go-puzzles/puzzles
 go 1.23.3
 
 require (
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fullstorydev/grpcui v1.5.0
 	github.com/gin-contrib/sessions v1.0.1
