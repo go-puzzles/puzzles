@@ -62,7 +62,6 @@ func ValidateRequestParams(obj any) (err error) {
 
 type requestHandler[Q any] func(c *gin.Context, req *Q)
 
-// 抽取通用的参数绑定和验证逻辑
 func bindAndValidate[Q any](c *gin.Context) (*Q, error) {
 	requestPtr := new(Q)
 
@@ -78,12 +77,10 @@ func bindAndValidate[Q any](c *gin.Context) (*Q, error) {
 	return requestPtr, nil
 }
 
-// 判断是否为有效的HTTP状态码
 func isValidHTTPStatusCode(code int) bool {
 	return code >= 100 && code < 600 && http.StatusText(code) != ""
 }
 
-// 统一的错误响应处理
 func handleError(c *gin.Context, err error) {
 	if err == nil {
 		return
@@ -91,7 +88,6 @@ func handleError(c *gin.Context, err error) {
 	parseError(c, err)
 }
 
-// 使用统一的绑定和错误处理重构处理器
 func RequestHandler[Q any](fn requestHandler[Q]) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		req, err := bindAndValidate[Q](c)
@@ -154,8 +150,8 @@ func ErrorReturnHandler(fn errorReturnHandler) gin.HandlerFunc {
 
 func parseError(c *gin.Context, err error) {
 	var (
-		httpCode = http.StatusBadRequest // HTTP状态码默认400
-		errCode  int                     // 业务错误码
+		httpCode = http.StatusBadRequest
+		errCode  int
 		message  string
 	)
 
