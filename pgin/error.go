@@ -20,7 +20,6 @@ type Error interface {
 	Code() int
 	Cause() error
 	Message() string
-	String() string
 }
 
 type internalError struct {
@@ -70,8 +69,4 @@ func (e *internalError) Cause() error {
 
 func (e *internalError) Message() string {
 	return e.message
-}
-
-func (e *internalError) String() string {
-	return e.Error()
 }

@@ -62,22 +62,45 @@ func ValidateRequestParams(obj any) (err error) {
 
 type requestHandler[Q any] func(c *gin.Context, req *Q)
 
+// 抽取通用的参数绑定和验证逻辑
+func bindAndValidate[Q any](c *gin.Context) (*Q, error) {
+	requestPtr := new(Q)
+
+	if err := ParseRequestParams(c, requestPtr); err != nil {
+		plog.Errorc(c, "parse request params failed: %v", err)
+		return nil, err
+	}
+
+	if err := ValidateRequestParams(requestPtr); err != nil {
+		return nil, err
+	}
+
+	return requestPtr, nil
+}
+
+// 判断是否为有效的HTTP状态码
+func isValidHTTPStatusCode(code int) bool {
+	return code >= 100 && code < 600 && http.StatusText(code) != ""
+}
+
+// 统一的错误响应处理
+func handleError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+	parseError(c, err)
+}
+
+// 使用统一的绑定和错误处理重构处理器
 func RequestHandler[Q any](fn requestHandler[Q]) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var err error
-		requestPtr := new(Q)
-
-		if err = ParseRequestParams(c, requestPtr); err != nil {
+		req, err := bindAndValidate[Q](c)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
 			return
 		}
 
-		if err = ValidateRequestParams(requestPtr); err != nil {
-			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
-			return
-		}
-
-		fn(c, requestPtr)
+		fn(c, req)
 	}
 }
 
@@ -85,22 +108,15 @@ type requestResponseHandler[Q any, P any] func(c *gin.Context, req *Q) (resp *P,
 
 func RequestResponseHandler[Q any, P any](fn requestResponseHandler[Q, P]) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		requestPtr := new(Q)
-		var err error
-
-		if err = ParseRequestParams(c, requestPtr); err != nil {
-			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
-			return
-		}
-
-		if err = ValidateRequestParams(requestPtr); err != nil {
-			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
-			return
-		}
-
-		resp, err := fn(c, requestPtr)
+		req, err := bindAndValidate[Q](c)
 		if err != nil {
-			parseError(c, err)
+			c.JSON(http.StatusBadRequest, ErrorRet(http.StatusBadRequest, err.Error()))
+			return
+		}
+
+		resp, err := fn(c, req)
+		if err != nil {
+			handleError(c, err)
 			return
 		}
 
@@ -138,28 +154,31 @@ func ErrorReturnHandler(fn errorReturnHandler) gin.HandlerFunc {
 
 func parseError(c *gin.Context, err error) {
 	var (
-		ie       *internalError
-		code     int
-		respCode int
+		httpCode = http.StatusBadRequest // HTTP状态码默认400
+		errCode  int                     // 业务错误码
 		message  string
 	)
 
-	if errors.As(err, &ie) {
-		code = ie.Code()
-		respCode = ie.Code()
-		message = ie.Message()
-	} else {
-		code = c.Writer.Status()
-		respCode = code
+	switch e := err.(type) {
+	case Error:
+		errCode = e.Code()
+		message = e.Message()
+	case *internalError:
+		errCode = e.Code()
+		message = e.Message()
+	default:
+		status := c.Writer.Status()
+		if status != http.StatusOK {
+			errCode = status
+		}
 		message = err.Error()
 	}
 
-	if code == http.StatusOK || http.StatusText(code) == "" {
-		code = http.StatusBadRequest
-		respCode = http.StatusBadRequest
+	if isValidHTTPStatusCode(errCode) {
+		httpCode = errCode
 	}
 
-	c.JSON(code, ErrorRet(respCode, message))
+	c.JSON(httpCode, ErrorRet(errCode, message))
 	plog.Errorf("handle request: %s error: %v", c.Request.URL.Path, err)
 }
 
