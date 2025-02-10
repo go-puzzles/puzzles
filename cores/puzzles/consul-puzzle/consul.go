@@ -86,7 +86,6 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 
 	<-ctx.Done()
 
-	discover.GetServiceFinder().Close()
 	return nil
 }
 
