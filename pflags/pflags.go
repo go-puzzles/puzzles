@@ -3,6 +3,7 @@ package pflags
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -87,13 +88,15 @@ func SetDefaultConfigWatcher(watchers watcher.ConfigWatcher) {
 }
 
 func OverrideDefaultConfigFile(configFile string) {
-	fileSplit := strings.Split("configFile", ".")
-	if len(fileSplit) != 2 {
+	ext := filepath.Ext(configFile)
+	if ext == "" {
 		plog.Fatalf("Invalid config file name: %s", configFile)
 	}
+	filename := strings.TrimSuffix(configFile, ext)
+	ext = strings.TrimPrefix(ext, ".")
 
-	defaultConfigName = fileSplit[0]
-	defaultConfigType = fileSplit[1]
+	defaultConfigName = filename
+	defaultConfigType = ext
 }
 
 func Viper() *viper.Viper {
@@ -103,6 +106,8 @@ func Viper() *viper.Viper {
 func initViper(opt *Option) {
 	v.AddConfigPath(".")
 	v.AddConfigPath("./configs")
+	v.AddConfigPath(os.Getenv("HOME"))
+
 	v.SetConfigName("config")
 	v.SetConfigType(opt.configFileType)
 
@@ -119,8 +124,8 @@ func initViper(opt *Option) {
 
 func initOption(opts ...OptionFunc) *Option {
 	opt := &Option{
-		configFileName: "config",
-		configFileType: "yaml",
+		configFileName: defaultConfigName,
+		configFileType: defaultConfigType,
 	}
 
 	for _, o := range opts {
