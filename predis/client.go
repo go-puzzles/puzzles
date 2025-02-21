@@ -1,3 +1,4 @@
+// Deprecated: This package is deprecated and should not be used anymore. Please use the github.com/go-puzzles/puzzles/goredis instead.
 package predis
 
 import (
