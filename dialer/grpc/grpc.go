@@ -18,7 +18,7 @@ func DialGrpcWithUnBlock(service string, opts ...grpc.DialOption) (*grpc.ClientC
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	return dialGrpcWithTagContextUnblock(ctx, service, "", opts...)
+	return dialGrpcWithTagContext(ctx, service, "", opts...)
 }
 
 func DialGrpcWithTag(service string, tag string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -45,19 +45,19 @@ func DialGrpcWithTagContext(ctx context.Context, service string, tag string, opt
 	return dialGrpcWithTagContext(ctx, service, tag, opts...)
 }
 
-func dialGrpcWithTagContextUnblock(ctx context.Context, service string, tag string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	options := append(opts, defaultGRPCDialOptions()...)
-	options = append(options, grpc.WithBlock())
-
-	address := discover.GetServiceFinder().GetAddressWithTag(service, tag)
-	conn, err := grpc.DialContext(ctx, address, options...)
-	if tag != "" {
-		plog.Debugc(ctx, "dial grpc service %s with tag %s. Addr=%s", service, tag, address)
-	} else {
-		plog.Debugc(ctx, "dial grpc service %s. Addr=%s", service, address)
-	}
-	return conn, err
-}
+// func dialGrpcWithTagContextUnblock(ctx context.Context, service string, tag string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+// 	options := append(opts, defaultGRPCDialOptions()...)
+// 	options = append(options, grpc.WithBlock())
+//
+// 	address := discover.GetServiceFinder().GetAddressWithTag(service, tag)
+// 	conn, err := grpc.DialContext(ctx, address, options...)
+// 	if tag != "" {
+// 		plog.Debugc(ctx, "dial grpc service %s with tag %s. Addr=%s", service, tag, address)
+// 	} else {
+// 		plog.Debugc(ctx, "dial grpc service %s. Addr=%s", service, address)
+// 	}
+// 	return conn, err
+// }
 
 func dialGrpcWithTagContext(ctx context.Context, service, tag string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	options := append(opts, defaultGRPCDialOptions()...)
