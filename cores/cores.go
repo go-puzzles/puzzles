@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/go-puzzles/puzzles/perror"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
 	"github.com/soheilhy/cmux"
@@ -137,7 +138,7 @@ func (c *CoreService) runMountFn() error {
 			if err != nil {
 				plog.Errorc(cc, "handle mount error: %v", err)
 				if mf.daemon {
-					return err
+					return perror.WrapError(500, err, "waitContext")
 				}
 				return nil
 			}
@@ -228,12 +229,12 @@ func Start[T listenEntry](srv *CoreService, addr T) error {
 	case string:
 		address = v
 	default:
-		return fmt.Errorf("unsupported address type: %T", v)
+		return perror.PackError(500, fmt.Sprintf("unsupported address type: %T", v))
 	}
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		return fmt.Errorf("failed to start listener: %w", err)
+		return perror.WrapError(500, err, "failed to start listener")
 	}
 
 	srv.listener = listener

@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	"github.com/go-puzzles/puzzles/perror"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
 )
@@ -157,12 +158,9 @@ func parseError(c *gin.Context, err error) {
 	)
 
 	switch e := err.(type) {
-	case Error:
+	case perror.ErrorR:
 		errCode = e.Code()
-		message = e.Message()
-	case *internalError:
-		errCode = e.Code()
-		message = e.Message()
+		message = e.String()
 	default:
 		status := c.Writer.Status()
 		if status != http.StatusOK {

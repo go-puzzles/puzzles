@@ -10,7 +10,6 @@ package pprofpuzzle
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -34,7 +33,6 @@ var (
 
 type pprofPuzzles struct {
 	*basepuzzle.BasePuzzle
-	lis net.Listener
 }
 
 func WithCorePprof() cores.ServiceOption {
@@ -73,12 +71,6 @@ func (p *pprofPuzzles) StartPuzzle(ctx context.Context, opts *cores.Options) err
 	return nil
 }
 
-func (p *pprofPuzzles) Stop() (err error) {
-	defer func() {
-		plog.Debugf("pprof puzzle stopped...")
-		if errors.Is(err, net.ErrClosed) {
-			err = nil
-		}
-	}()
-	return p.lis.Close()
+func (p *pprofPuzzles) Stop() error {
+	return nil
 }

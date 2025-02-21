@@ -2,10 +2,12 @@ package cores
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"runtime"
 	"time"
 
+	"github.com/go-puzzles/puzzles/perror"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
@@ -122,7 +124,7 @@ func (c *CoreService) mountSimpleWorker(worker *simpleWorker) {
 
 		if err := worker.fn(c); err != nil && !errors.Is(err, context.Canceled) {
 			plog.Errorc(c, "worker: %v run error: %v", worker.name, err)
-			return errors.Wrap(err, worker.name)
+			return perror.WrapError(500, err, fmt.Sprintf("simpleWorker: %v run failed", worker.name))
 		}
 		return nil
 	}
@@ -222,7 +224,7 @@ func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Cont
 		return err
 	case <-ctx.Done():
 		if quitImmediately {
-			return ctx.Err()
+			return perror.WrapError(500, ctx.Err(), "quit immediately")
 		}
 
 		ticket := time.NewTicker(time.Second * 5)
@@ -230,10 +232,10 @@ func waitContext(ctx context.Context, quitImmediately bool, fn func(context.Cont
 
 		select {
 		case err = <-stop:
-			return err
+			return perror.WrapError(500, err, "stop")
 		case <-ticket.C:
 			plog.Infoc(ctx, "Force closing worker")
-			return errors.Wrap(ctx.Err(), "Force close")
+			return perror.WrapError(500, ctx.Err(), "Force close")
 		}
 	}
 }
