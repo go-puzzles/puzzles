@@ -12,11 +12,11 @@ import (
 	crand "crypto/rand"
 	"io"
 	"math"
+	"math/rand"
 	"time"
 	"unsafe"
 
 	"golang.org/x/exp/constraints"
-	"golang.org/x/exp/rand"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 var rn *rand.Rand
 
 func init() {
-	rn = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+	rn = rand.New(rand.NewSource(int64(time.Now().UnixNano())))
 }
 
 // RandBool generates a random boolean value (true or false).
