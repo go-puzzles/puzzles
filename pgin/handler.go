@@ -11,6 +11,7 @@ package pgin
 import (
 	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -203,4 +204,32 @@ func RequestWithErrorHandler[Q any](fn requestWithErrorHandler[Q]) gin.HandlerFu
 
 		c.JSON(http.StatusOK, SuccessRet(nil))
 	}
+}
+
+type ModelHandler[R any] interface {
+	Handle(c *gin.Context) (resp *R, err error)
+}
+
+func MountHandler[MH ModelHandler[R], R any]() gin.HandlerFunc {
+	// r is a pointer of ModelHandler like *ModelHandler
+	r := new(MH)
+	to := reflect.TypeOf(r)
+
+	// if depth == 1, it means MountHandler[MountTestHandler]()
+	// if depth == 2, it means MountHandler[*MountTestHandler]()
+	depth := 0
+
+	for to.Kind() == reflect.Pointer {
+		to = to.Elem()
+		depth++
+	}
+
+	if depth != 1 {
+		panic("MountHandler[]() Generic types should not be pointer types")
+	}
+
+	return RequestResponseHandler(func(c *gin.Context, req *MH) (resp *R, err error) {
+		resp, err = (*req).Handle(c)
+		return
+	})
 }

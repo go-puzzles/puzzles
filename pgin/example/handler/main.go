@@ -75,5 +75,21 @@ func main() {
 		}, nil
 	}))
 
+	engine.GET("/mount/test", pgin.MountHandler[MountTestHandler]())
+
 	engine.Run(":8080")
+}
+
+type MountTestHandler struct {
+	Name string `form:"name"`
+}
+
+type MountTestResponse struct {
+	Message string `json:"message"`
+}
+
+func (m MountTestHandler) Handle(c *gin.Context) (resp *MountTestResponse, err error) {
+	return &MountTestResponse{
+		Message: "Hello, " + m.Name,
+	}, nil
 }
