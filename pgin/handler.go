@@ -9,6 +9,7 @@
 package pgin
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -166,6 +167,10 @@ func parseError(c *gin.Context, err error) {
 		if status != http.StatusOK {
 			errCode = status
 		}
+
+		if errCode == 0 {
+			errCode = http.StatusBadRequest
+		}
 		message = err.Error()
 	}
 
@@ -204,13 +209,9 @@ func RequestWithErrorHandler[Q any](fn requestWithErrorHandler[Q]) gin.HandlerFu
 	}
 }
 
-type ModelHandler[R any] interface {
-	Handle(c *gin.Context) (resp *R, err error)
-}
-
-func MountHandler[MH ModelHandler[R], R any]() gin.HandlerFunc {
+func prepareMount[T any]() error {
 	// r is a pointer of ModelHandler like *ModelHandler
-	r := new(MH)
+	r := new(T)
 	to := reflect.TypeOf(r)
 
 	// if depth == 1, it means MountHandler[MountTestHandler]()
@@ -223,11 +224,40 @@ func MountHandler[MH ModelHandler[R], R any]() gin.HandlerFunc {
 	}
 
 	if depth != 1 {
+		return fmt.Errorf("depth not equal to 1")
+	}
+
+	return nil
+}
+
+type ModelHandler[R any] interface {
+	Handle(c *gin.Context) (resp *R, err error)
+}
+
+func MountHandler[MH ModelHandler[R], R any]() gin.HandlerFunc {
+	err := prepareMount[MH]()
+	if err != nil {
 		panic("MountHandler[]() Generic types should not be pointer types")
 	}
 
 	return RequestResponseHandler(func(c *gin.Context, req *MH) (resp *R, err error) {
 		resp, err = (*req).Handle(c)
+		return
+	})
+}
+
+type ModelWithArgHandler[R any, ARG any] interface {
+	Handle(c *gin.Context, arg ARG) (resp *R, err error)
+}
+
+func MountHandlerWithArg[MH ModelWithArgHandler[R, ARG], R any, ARG any](arg ARG) gin.HandlerFunc {
+	err := prepareMount[MH]()
+	if err != nil {
+		panic("MountHandlerWithArg[]() Generic types should not be pointer types")
+	}
+
+	return RequestResponseHandler(func(c *gin.Context, req *MH) (resp *R, err error) {
+		resp, err = (*req).Handle(c, arg)
 		return
 	})
 }
