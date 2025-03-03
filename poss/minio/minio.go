@@ -122,6 +122,20 @@ func (m *MinioOss) GetFile(ctx context.Context, objName string, w io.Writer) err
 	return nil
 }
 
+func (m *MinioOss) CheckFileExists(ctx context.Context, objName string) (bool, error) {
+	_, err := m.client.StatObject(ctx, m.Bucket, objName, minio.StatObjectOptions{})
+	if err != nil {
+		minioErrResp := new(minio.ErrorResponse)
+		if errors.As(err, &minioErrResp) && minioErrResp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "statObject")
+	}
+
+	return true, nil
+}
+
 func (m *MinioOss) PresignedGetObject(ctx context.Context, objName string, expires time.Duration) (*url.URL, error) {
 	u, err := m.client.PresignedGetObject(ctx, m.Bucket, objName, expires, url.Values{})
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 type IOSS interface {
 	UploadFile(ctx context.Context, size int64, dir, objName string, obj io.Reader) (uri string, err error)
 	GetFile(ctx context.Context, objName string, w io.Writer) error
+	CheckFileExists(ctx context.Context, objName string) (bool, error)
 	PresignedGetObject(ctx context.Context, objName string, expires time.Duration) (*url.URL, error)
 	ProxyPresignedGetObject(objName string, rw http.ResponseWriter, req *http.Request)
 }
