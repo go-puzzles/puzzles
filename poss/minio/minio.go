@@ -90,11 +90,11 @@ func (m *MinioOss) generateObjName(obj string) string {
 	return fileName + ext
 }
 
-func (m *MinioOss) UploadFile(ctx context.Context, size int64, dir, objName string, obj io.Reader) (uri string, err error) {
+func (m *MinioOss) UploadFile(ctx context.Context, size int64, dir, objName string, obj io.Reader, tags map[string]string) (uri string, err error) {
 	rawObjName := m.generateObjName(objName)
 
 	putOpt := minio.PutObjectOptions{
-		UserTags: map[string]string{},
+		UserTags: tags,
 	}
 
 	newObjName := fmt.Sprintf("%s/%s", dir, rawObjName)
