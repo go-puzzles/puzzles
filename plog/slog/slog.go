@@ -13,13 +13,13 @@ import (
 	"github.com/go-puzzles/puzzles/plog/level"
 	logctx "github.com/go-puzzles/puzzles/plog/log-ctx"
 	"github.com/go-puzzles/puzzles/plog/parser"
+	"github.com/go-puzzles/puzzles/plog/slog/handler"
 )
 
 type logable func(ctx context.Context, msg string, args ...any)
 
 type Logger struct {
 	logger          *slog.Logger
-	handler         slog.Handler
 	logLevel        level.Level
 	slogLoggerLevel *slog.LevelVar
 	slogOpt         *slog.HandlerOptions
@@ -35,7 +35,7 @@ func WithCalldepth(d int) Option {
 }
 
 func New(opts ...Option) *Logger {
-	return NewSlogTextLogger(os.Stdout, opts...)
+	return NewSlogPrettyLogger(os.Stdout, opts...)
 }
 
 func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Option) *Logger {
@@ -46,7 +46,6 @@ func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Opti
 	logger := slog.New(handler)
 	l := &Logger{
 		logger:          logger,
-		handler:         handler,
 		logLevel:        level.LevelInfo,
 		slogLoggerLevel: lev,
 		slogOpt:         opt,
@@ -58,6 +57,12 @@ func NewWithHandler(handler slog.Handler, opt *slog.HandlerOptions, opts ...Opti
 	}
 
 	return l
+}
+
+func NewSlogPrettyLogger(w io.Writer, opts ...Option) *Logger {
+	slogOpt := &slog.HandlerOptions{}
+	handler := handler.NewPrettyHandler(w, slogOpt)
+	return NewWithHandler(handler, slogOpt, opts...)
 }
 
 func NewSlogTextLogger(w io.Writer, opts ...Option) *Logger {
