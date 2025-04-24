@@ -9,7 +9,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -180,27 +179,12 @@ func (h *PrettyHandler) Handle(ctx context.Context, r slog.Record) error {
 		return h.writeLog(r.Time, levelStr, r.Message, attrsBytes)
 	}
 
-	if h.isTerm {
-		attrsBytes, err = h.formatTermAttrs(attrs)
-	} else {
-		attrsBytes, err = h.formatTextAttrs(attrs)
-	}
-
+	attrsBytes, err = h.formatTermAttrs(attrs)
 	if err != nil {
 		return fmt.Errorf("error when formatting Term(%v)attrs: %w", h.isTerm, err)
 	}
 
 	return h.writeLog(r.Time, levelStr, r.Message, attrsBytes)
-}
-
-func (h *PrettyHandler) formatTextAttrs(attrs map[string]any) ([]byte, error) {
-	var buf bytes.Buffer
-
-	for k, v := range attrs {
-		buf.WriteString(fmt.Sprintf("%s=%v ", k, v))
-	}
-
-	return buf.Bytes(), nil
 }
 
 func (h *PrettyHandler) formatTermAttrs(attrs map[string]any) ([]byte, error) {
@@ -296,20 +280,6 @@ func (h *PrettyHandler) ensureNestedGroup(current map[string]any, group string) 
 	current[group] = newGrp
 	return newGrp
 }
-
-// // addSourceLocation adds source code location information
-// func (h *PrettyHandler) addSourceLocation(attrs map[string]any, r slog.Record) {
-// 	if h.opts.AddSource && r.PC != 0 {
-// 		fs := runtime.CallersFrames([]uintptr{r.PC})
-// 		frame, _ := fs.Next()
-// 		source := map[string]any{
-// 			"function": frame.Function,
-// 			"file":     frame.File,
-// 			"line":     frame.Line,
-// 		}
-// 		attrs["source"] = source
-// 	}
-// }
 
 // writeLog will write the formatted log to the output
 func (h *PrettyHandler) writeLog(t time.Time, level, msg string, attrsBytes []byte) error {
