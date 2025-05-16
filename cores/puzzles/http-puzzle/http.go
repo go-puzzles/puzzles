@@ -46,7 +46,13 @@ func WithCoreHttpPuzzle(pattern string, handler http.Handler) cores.ServiceOptio
 		}
 
 		hp.pattern = pattern
-		hp.router.PathPrefix(pattern).Handler(http.StripPrefix(pattern, handler))
+		hp.router.PathPrefix(pattern).Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if pattern == "/" || pattern == "" {
+				handler.ServeHTTP(w, r)
+				return
+			}
+			http.StripPrefix(pattern, handler).ServeHTTP(w, r)
+		}))
 		o.RegisterPuzzle(hp)
 	}
 }
@@ -67,7 +73,12 @@ func (h *httpPuzzles) StartPuzzle(ctx context.Context, opt *cores.Options) error
 		handler = cors.AllowAll().Handler(handler)
 	}
 
-	opt.HttpMux.Handle(hp.pattern+"/", h.router)
+	pattern := hp.pattern
+	if pattern != "/" {
+		pattern += "/"
+	}
+
+	opt.HttpMux.Handle(pattern, h.router)
 
 	_, port, _ := net.SplitHostPort(opt.ListenerAddr)
 	target := fmt.Sprintf("127.0.0.1:%s", port)
