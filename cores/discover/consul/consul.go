@@ -18,6 +18,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+const (
+	consulHostEnvKey = "GO_PUZZLES_CONSUL_HOST"
+)
+
 type RegisteredService struct {
 	ServiceID string
 	CheckID   string
@@ -34,13 +38,27 @@ func IsInsideDockerContainer() bool {
 	return err == nil
 }
 
+func getConsulHostFromEnv() string {
+	return os.Getenv(consulHostEnvKey)
+}
+
+func setShareConsulAddr(host string) {
+	share.ConsulAddr = func() string { return fmt.Sprintf("%s:8500", host) }
+}
+
 func init() {
-	addrs, err := net.LookupHost("host.docker.internal")
-	if err == nil && len(addrs) > 0 && IsInsideDockerContainer() {
-		share.ConsulAddr = func() string { return fmt.Sprintf("%s:8500", addrs[0]) }
+	if envHost := getConsulHostFromEnv(); envHost != "" {
+		setShareConsulAddr(envHost)
 		return
 	}
-	share.ConsulAddr = func() string { return "127.0.0.1:8500" }
+
+	addrs, err := net.LookupHost("host.docker.internal")
+	if err == nil && len(addrs) > 0 && IsInsideDockerContainer() {
+		setShareConsulAddr(addrs[0])
+		return
+	}
+
+	setShareConsulAddr("127.0.0.1")
 }
 
 var (
