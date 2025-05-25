@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/go-puzzles/puzzles/perror"
+	"github.com/go-puzzles/puzzles/pflags"
 	"github.com/go-puzzles/puzzles/plog"
 	"github.com/robfig/cron/v3"
 	"github.com/soheilhy/cmux"
@@ -74,10 +75,11 @@ func NewPuzzleCore(opts ...ServiceOption) *CoreService {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	coreOpts := &Options{
-		Ctx:     ctx,
-		HttpMux: http.NewServeMux(),
-		puzzles: make(map[string]Puzzle),
-		workers: make([]Worker, 0),
+		Ctx:         ctx,
+		HttpMux:     http.NewServeMux(),
+		ServiceName: pflags.GetServiceName(),
+		puzzles:     make(map[string]Puzzle),
+		workers:     make([]Worker, 0),
 	}
 	coreOpts.HttpHandler = coreOpts.HttpMux
 
