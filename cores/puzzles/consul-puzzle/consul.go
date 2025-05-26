@@ -3,6 +3,8 @@ package consulpuzzle
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"sort"
 	"strings"
 
@@ -17,6 +19,10 @@ import (
 
 	basepuzzle "github.com/go-puzzles/puzzles/cores/puzzles/base"
 	consulReader "github.com/go-puzzles/puzzles/pflags/reader/consul"
+)
+
+const (
+	consulRegisterHostEnvKey = "GO_PUZZLES_CONSUL_REGISTER_HOST"
 )
 
 type consulPuzzle struct {
@@ -60,6 +66,13 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 		return errors.New("consul register handler can only be used when the service is listening on a port")
 	}
 
+	registerAddr := opt.ListenerAddr
+	customRegisterHost := os.Getenv(consulRegisterHostEnvKey)
+	if customRegisterHost != "" {
+		_, port, _ := net.SplitHostPort(opt.ListenerAddr)
+		registerAddr = fmt.Sprintf("%s:%d", customRegisterHost, port)
+	}
+
 	if opt.ServiceName == "" {
 		return errors.New("consul register handler need a ServiceName to register")
 	}
@@ -70,7 +83,7 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 
 	tags := opt.Tags[:]
 	sort.Strings(tags)
-	if err := discover.GetServiceFinder().RegisterServiceWithTags(opt.ServiceName, opt.ListenerAddr, tags); err != nil {
+	if err := discover.GetServiceFinder().RegisterServiceWithTags(opt.ServiceName, registerAddr, tags); err != nil {
 		return errors.Wrap(err, "registerConsul")
 	}
 
