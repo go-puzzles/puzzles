@@ -70,7 +70,7 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 	customRegisterHost := os.Getenv(consulRegisterHostEnvKey)
 	if customRegisterHost != "" {
 		_, port, _ := net.SplitHostPort(opt.ListenerAddr)
-		registerAddr = fmt.Sprintf("%s:%d", customRegisterHost, port)
+		registerAddr = fmt.Sprintf("%s:%s", customRegisterHost, port)
 	}
 
 	if opt.ServiceName == "" {
@@ -88,8 +88,8 @@ func (cp *consulPuzzle) StartPuzzle(ctx context.Context, opt *cores.Options) err
 	}
 
 	var logArgs []any
-	logText := "Registered into consul(%s) success. Service=%v"
-	logArgs = append(logArgs, consul.GetConsulAddress(), opt.ServiceName)
+	logText := "Registered into consul(%s) success. Service=%v Addr=%v"
+	logArgs = append(logArgs, consul.GetConsulAddress(), opt.ServiceName, registerAddr)
 	if len(tags) > 0 {
 		logText = fmt.Sprintf("%v %v", logText, "Tag=%v")
 		logArgs = append(logArgs, strings.Join(tags, ","))
