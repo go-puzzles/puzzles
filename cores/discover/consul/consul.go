@@ -221,7 +221,7 @@ func (c *Client) RegisterServiceWithTags(serviceName string, address string, tag
 		Check: &api.AgentServiceCheck{
 			CheckID:                        checkID,
 			Name:                           serviceID,
-			TCP:                            fmt.Sprintf("127.0.0.1:%d", ip.Port),
+			TCP:                            address,
 			Interval:                       (time.Second * 10).String(),
 			Status:                         "passing",
 			DeregisterCriticalServiceAfter: "10m",
